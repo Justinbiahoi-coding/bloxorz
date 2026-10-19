@@ -14,5 +14,8 @@ Course project for CSC14003 – Introduction to Artificial Intelligence, VNU-HCM
 See [`Source/README.md`](Source/README.md) for setup, run and test instructions.
 
 ## Docs
-- [`YEU_CAU_DE_BAI.md`](YEU_CAU_DE_BAI.md) – assignment requirements
-- [`PHAN_CONG.md`](PHAN_CONG.md) – task split
+- [`docs/UI_ENGINE_INTERACTION.md`](docs/UI_ENGINE_INTERACTION.md) – UI and engine interface
+- [`docs/ALGORITHM_IMPLEMENTATION_GUIDE.md`](docs/ALGORITHM_IMPLEMENTATION_GUIDE.md) – state representation and algorithm contract
+- [`docs/YEU_CAU_DE_BAI.md`](docs/YEU_CAU_DE_BAI.md) – assignment requirements
+- [`docs/PHAN_CONG.md`](docs/PHAN_CONG.md) – task split
+- [`docs/AI - Project 1.pdf`](docs/AI%20-%20Project%201.pdf) – project brief
