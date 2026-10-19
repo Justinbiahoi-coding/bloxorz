@@ -30,6 +30,16 @@ class SearchTests(unittest.TestCase):
 
 
 class SessionTests(unittest.TestCase):
+    def test_read_api(self):
+        session = GameSession(1)
+        self.assertEqual(session.tile_at(*session.level.end), 'goal')
+        self.assertEqual(session.tile_at(-1, -1), 'void')
+        cells = session.block_cells()
+        self.assertEqual(len(cells), 1)
+        self.assertEqual(session.tile_at(*cells[0]), 'floor')
+        session.move('RIGHT')
+        self.assertEqual(len(session.block_cells()), 2)
+
     def test_moves_update_state_and_counter(self):
         session = GameSession(1)
         start = session.state

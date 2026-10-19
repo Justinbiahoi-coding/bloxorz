@@ -41,6 +41,9 @@ class Game:
         self.block_color = (150, 150, 150)
         self.hint_color = (255, 128, 0)
         self.goal_color = (252, 25, 25)
+        self._tile_colors = {'floor': self.available_color,
+                             'void': self.unavailable_color,
+                             'goal': self.goal_color}
         self.line_color = (255, 255, 255)
 
         self.font = pygame.font.Font(None, 50)
@@ -86,8 +89,7 @@ class Game:
     def draw(self):
         self.draw_grid()
         self.draw_map()
-        self.draw_goal()
-        self.draw_position(self.session.state.position, self.block_color)
+        self.draw_cells(self.session.block_cells(), self.block_color)
         self.draw_hint()
 
     def draw_grid(self):
@@ -107,10 +109,8 @@ class Game:
     def draw_map(self):
         for x in range(self.level.size):
             for y in range(self.level.size):
-                if self.level.is_tile_available(x, y):
-                    self.draw_map_square(x, y, self.available_color)
-                else:
-                    self.draw_map_square(x, y, self.unavailable_color)
+                self.draw_map_square(
+                    x, y, self._tile_colors[self.session.tile_at(x, y)])
 
     def draw_map_square(self, x, y, color):
         rect = pygame.Rect(
@@ -121,26 +121,20 @@ class Game:
         )
         pygame.draw.rect(self.surface, color, rect)
 
-    def draw_position(self, position, color):
-        if len(position) == 2:
-            self.draw_map_square(position[0], position[1], color)
-            return
-
-        x1, y1, x2, y2 = position
-        self.draw_map_square(x1, y1, color)
-        self.draw_map_square(x2, y2, color)
-        if x1 == x2:
-            self.draw_map_square(x1, (y1 + y2) / 2, color)
-        else:
-            self.draw_map_square((x1 + x2) / 2, y1, color)
+    def draw_cells(self, cells, color):
+        for x, y in cells:
+            self.draw_map_square(x, y, color)
+        if len(cells) == 2:  # fill the gap between the two halves
+            (x1, y1), (x2, y2) = cells
+            self.draw_map_square((x1 + x2) / 2, (y1 + y2) / 2, color)
 
     def draw_hint(self):
         if not self.show_hint:
             return
 
         if self.session.hint is not None:
-            self.draw_position(self.session.hint.state.position,
-                               self.hint_color)
+            self.draw_cells(self.session.block_cells(self.session.hint.state),
+                            self.hint_color)
         elif not self.session.won:
             text = self.font.render(
                 "Feeling Trapped? Press H for a hint.",
@@ -148,11 +142,6 @@ class Game:
             text_rect = text.get_rect(
                 center=(self.W_WIDTH_SIZE / 2, self.W_HEIGHT_SIZE - 35))
             self.surface.blit(text, text_rect)
-
-    def draw_goal(self):
-        x = self.session.goal.position[0]
-        y = self.session.goal.position[1]
-        self.draw_map_square(x, y, self.goal_color)
 
     def should_quit(self):
         return self.ESC

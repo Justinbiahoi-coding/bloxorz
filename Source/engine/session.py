@@ -24,6 +24,17 @@ class GameSession:
     def won(self):
         return self.problem.goal_test(self.state)
 
+    def tile_at(self, x, y):
+        """Tile kind at column x, row y: 'floor', 'void' or 'goal'."""
+        if [x, y] == list(self.goal.position):
+            return 'goal'
+        return 'floor' if self.level.is_tile_available(x, y) else 'void'
+
+    def block_cells(self, state=None):
+        """Cells (x, y) the block occupies in ``state`` (default: current)."""
+        p = (state or self.state).position
+        return [(p[i], p[i + 1]) for i in range(0, len(p), 2)]
+
     def actions(self):
         return self.problem.actions(self.state)
 
