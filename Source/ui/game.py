@@ -1,5 +1,7 @@
 import pygame
 
+from . import rooftop
+
 # Keyboard key -> engine action.
 _MOVE_KEYS = {
     pygame.K_LEFT: 'LEFT',
@@ -46,6 +48,7 @@ class Game:
                              'goal': self.goal_color}
         self.line_color = (255, 255, 255)
 
+        self.sky = rooftop.sky((W_WIDTH_SIZE, W_HEIGHT_SIZE))
         self.font = pygame.font.Font(None, 50)
         self.ESC = False
         self.show_hint = show_hint
@@ -87,30 +90,26 @@ class Game:
         self.surface.blit(text, text_rect)
 
     def draw(self):
-        self.draw_grid()
+        self.surface.blit(self.sky, (0, 0))
         self.draw_map()
-        self.draw_cells(self.session.block_cells(), self.block_color)
+        self.draw_block()
         self.draw_hint()
 
-    def draw_grid(self):
-        x = self.starting_x
-        y = self.starting_y
-
-        for _ in range(self.level.size + 1):
-            pygame.draw.line(self.surface, self.line_color,
-                             (int(x), int(self.starting_y)),
-                             (int(x), int(self.ending_y)))
-            pygame.draw.line(self.surface, self.line_color,
-                             (int(self.starting_x), int(y)),
-                             (int(self.ending_x), int(y)))
-            x += self.square_size
-            y += self.square_size
+    def cell_rect(self, x, y):
+        sq = self.square_size
+        return pygame.Rect(int(self.starting_x + x * sq), int(self.starting_y + y * sq), int(sq), int(sq))
 
     def draw_map(self):
-        for x in range(self.level.size):
-            for y in range(self.level.size):
-                self.draw_map_square(
-                    x, y, self._tile_colors[self.session.tile_at(x, y)])
+        for y in range(self.level.size):
+            for x in range(self.level.size):
+                kind = self.session.tile_at(x, y)
+                if kind != 'void':
+                    below = y + 1 >= self.level.size or self.session.tile_at(x, y + 1) == 'void'
+                    rooftop.tile(self.surface, self.cell_rect(x, y), kind, below)
+
+    def draw_block(self):
+        rects = [self.cell_rect(x, y) for x, y in self.session.block_cells()]
+        rooftop.block(self.surface, rects[0].unionall(rects[1:]))
 
     def draw_map_square(self, x, y, color):
         rect = pygame.Rect(
