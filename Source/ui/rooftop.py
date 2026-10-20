@@ -1,4 +1,5 @@
 """Rooftop look: procedural sky, concrete tiles with an edge, metallic block. No image assets."""
+import math
 import random
 
 import pygame
@@ -34,8 +35,18 @@ SOFT, HEAVY, SPLIT = (96, 120, 150), (70, 70, 78), (120, 70, 150)
 def tile(surf, rect, kind, edge_below, texture=None):
     """One tile. ``edge_below``: the cell under it is empty, so show the slab's side face."""
     if kind in ('void', 'bridge_closed'):
-        if kind == 'bridge_closed':
-            pygame.draw.rect(surf, BRIDGE, rect.inflate(-8, -8), 1)   # faint outline where a bridge could appear
+        if kind == 'bridge_closed':                          # barrier across a gap that a switch can open
+            bar = rect.inflate(-rect.w // 8, -rect.h * 3 // 5)
+            pygame.draw.rect(surf, (250, 200, 40), bar)
+            step = max(4, bar.w // 6)
+            old_clip = surf.get_clip()
+            surf.set_clip(bar)
+            for x in range(bar.x - bar.h, bar.right, step * 2):
+                pygame.draw.polygon(surf, (30, 30, 34), [(x, bar.bottom), (x + bar.h, bar.y), (x + bar.h + step, bar.y), (x + step, bar.bottom)])
+            surf.set_clip(old_clip)
+            pygame.draw.rect(surf, (30, 30, 34), bar, 1)
+            for px in (bar.x, bar.right - 4):
+                pygame.draw.rect(surf, (90, 90, 96), (px, bar.y - 3, 4, bar.h + 6))
         return
     depth = max(4, rect.height // 4)
     if edge_below:
@@ -50,8 +61,13 @@ def tile(surf, rect, kind, edge_below, texture=None):
     surf.blit(hi, rect.topleft)
     cx, cy, r = rect.centerx, rect.centery, rect.width // 3
     if kind == 'goal':
-        pygame.draw.circle(surf, PIT, rect.center, int(rect.width * 0.34))
-        pygame.draw.circle(surf, RING, rect.center, int(rect.width * 0.42), max(2, rect.width // 20))
+        pygame.draw.circle(surf, PIT, rect.center, int(rect.width * 0.34))     # the hatch down to the next floor
+        ring = rect.inflate(-rect.w // 6, -rect.h // 6)
+        width = max(3, rect.width // 14)
+        pygame.draw.circle(surf, (30, 30, 34), rect.center, ring.w // 2, width)
+        for i in range(8):                                                     # hazard-striped rim
+            a = i * math.pi / 4
+            pygame.draw.arc(surf, (250, 200, 40), ring, a, a + math.pi / 8, width)
     elif kind == 'fragile':
         pygame.draw.lines(surf, CONCRETE_SIDE, False, [(rect.x + 6, rect.y + 8), (cx, cy), (rect.right - 8, cy + 6)], 2)
     elif kind == 'soft':

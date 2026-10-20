@@ -47,6 +47,7 @@ class Game:
 
         # background: sky, plus the skyscraper around the floor in tower mode (scene = (floor, floor_count))
         self.sky = (background or rooftop.sky((W_WIDTH_SIZE, W_HEIGHT_SIZE))).copy()
+        self.scene = scene
         self.beacon = building.bake(self.sky, self, *scene) if scene else None
 
         self.unavailable_color = (10, 10, 10)
@@ -137,8 +138,22 @@ class Game:
                 if kind != 'void':
                     below = y + 1 >= self.level.size or self.session.tile_at(x, y + 1) in ('void', 'bridge_closed')
                     tex = _TILE_TEXTURE.get(kind)
+                    if self.scene:                       # path is part of the floor: flush, same material indoors
+                        below = False
+                        if tex == 'concrete' and self.scene[0] > 0:
+                            tex = 'wood'
                     piece = sprites.cell_piece(tex, int(self.square_size), x, y) if tex else None
-                    rooftop.tile(self.surface, self.cell_rect(x, y), kind, below, piece)
+                    rect = self.cell_rect(x, y)
+                    rooftop.tile(self.surface, rect, kind, below, piece)
+                    if self.scene and kind != 'bridge_closed':
+                        self.surface.blit(self._path_veil(rect.size), rect.topleft)
+
+    def _path_veil(self, size):
+        """Light wash marking the walkable cells without lifting them off the floor."""
+        if getattr(self, '_veil', None) is None or self._veil.get_size() != size:
+            self._veil = pygame.Surface(size, pygame.SRCALPHA)
+            self._veil.fill((255, 244, 220, 34))
+        return self._veil
 
     def draw_block(self):
         boxes, roll, now = self._boxes(self.session.state), None, pygame.time.get_ticks()

@@ -24,4 +24,4 @@ The assignment explicitly allows recreating classic levels.
   SDXL setup (`tools/comfy_gen.py`, seeds 201-205) and made seamless with `tools/process_assets.py`.
 - Prop sprites `Source/assets/props/` were made image-to-image: the code-drawn props
   (`ui/building.py: draw_code_prop`) are rendered as sketches by `tools/make_sketches.py`, then SDXL adds
-  detail at denoise 0.8 (seeds 401-408), and `tools/process_assets.py` removes the white background.
+  detail at denoise 0.8 (seeds 401-408, 501-509), and `tools/process_assets.py` removes the white background.
