@@ -36,6 +36,7 @@ class TowerGame(Entity):
         self.next_floor = None
         self.block = Block()
         self.phase, self.t = 'play', 0.0
+        self.queued = None
         camera.fov = 38
         self._place_block()
         self._aim(self.floor)
@@ -86,6 +87,9 @@ class TowerGame(Entity):
             if not key.endswith(' up'):
                 self.intro.skip_or_enter()
             return
+        if self.phase == 'roll' and (key in KEYS or key == 'space'):
+            self.queued = key                                    # buffer one move so play feels responsive
+            return
         if self.phase != 'play':
             return
         s = self.tower.session
@@ -114,6 +118,7 @@ class TowerGame(Entity):
     # ---- per frame ----
     def update(self):
         dt = time.dt
+        self.block.tick(dt, self.phase == 'play')
         if self.floor.beacon:
             self.floor.beacon.color = color.rgb(255, 60, 50) if int(time.time() * 1.6) % 2 else color.rgb(90, 30, 30)
         if self.phase == 'intro':
@@ -124,13 +129,16 @@ class TowerGame(Entity):
                 self._show_hud(True)
                 self.phase = 'play'
         elif self.phase == 'roll':
-            self.t += dt / ROLL_S
+            self.t += dt / self.block.duration
             self.block.set_progress(min(1.0, self.t))
             if self.t >= 1:
                 self.block.finish()
                 self.phase = 'play'
                 self._after_move()
                 self._hud()
+                if self.queued and self.phase == 'play':     # a key pressed mid-move plays right after
+                    key, self.queued = self.queued, None
+                    self.input(key)
         elif self.phase == 'fall':                                  # down the stairwell
             self.t += dt / FALL_S
             for e in self.block.pieces:
