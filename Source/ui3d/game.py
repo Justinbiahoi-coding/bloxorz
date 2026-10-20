@@ -80,6 +80,8 @@ class TowerGame(Entity):
     def input(self, key):
         if key == 'escape':
             application.quit()
+        if key == 'f':
+            window.fullscreen = not window.fullscreen
         if self.phase == 'intro':
             if not key.endswith(' up'):
                 self.intro.skip()
