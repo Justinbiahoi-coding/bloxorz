@@ -27,19 +27,41 @@ def sky(size, seed=7):
     return surf
 
 
+FRAGILE, BRIDGE = (226, 170, 110), (150, 108, 64)
+SOFT, HEAVY, SPLIT = (96, 120, 150), (70, 70, 78), (120, 70, 150)
+
+
 def tile(surf, rect, kind, edge_below):
-    """One floor tile. ``edge_below``: the tile under it is void, so show the slab's side face."""
+    """One tile. ``edge_below``: the cell under it is empty, so show the slab's side face."""
+    if kind in ('void', 'bridge_closed'):
+        if kind == 'bridge_closed':
+            pygame.draw.rect(surf, BRIDGE, rect.inflate(-8, -8), 1)   # faint outline where a bridge could appear
+        return
     depth = max(4, rect.height // 4)
     if edge_below:
         pygame.draw.rect(surf, CONCRETE_SIDE, (rect.x, rect.bottom, rect.width, depth))
-    pygame.draw.rect(surf, CONCRETE, rect)
+    pygame.draw.rect(surf, {'fragile': FRAGILE, 'bridge_open': BRIDGE}.get(kind, CONCRETE), rect)
     pygame.draw.rect(surf, CONCRETE_LINE, rect, 1)
+    cx, cy, r = rect.centerx, rect.centery, rect.width // 3
     if kind == 'goal':
         pygame.draw.rect(surf, PIT, rect.inflate(-rect.width // 3, -rect.height // 3), border_radius=4)
         pygame.draw.circle(surf, RING, rect.center, rect.width * 2 // 5, 2)
+    elif kind == 'fragile':
+        pygame.draw.lines(surf, CONCRETE_SIDE, False, [(rect.x + 6, rect.y + 8), (cx, cy), (rect.right - 8, cy + 6)], 2)
+    elif kind == 'soft':
+        pygame.draw.circle(surf, SOFT, rect.center, r)
+    elif kind == 'heavy':
+        pygame.draw.line(surf, HEAVY, (cx - r, cy - r), (cx + r, cy + r), 4)
+        pygame.draw.line(surf, HEAVY, (cx - r, cy + r), (cx + r, cy - r), 4)
+    elif kind == 'split':
+        pygame.draw.arc(surf, SPLIT, rect.inflate(-6, -6), 2.2, 4.1, 4)
+        pygame.draw.arc(surf, SPLIT, rect.inflate(-6, -6), -0.95, 0.95, 4)
+    elif kind == 'bridge_open':
+        for k in (-r, 0, r):
+            pygame.draw.line(surf, CONCRETE_SIDE, (rect.x + 4, cy + k), (rect.right - 4, cy + k), 1)
 
 
-def block(surf, rect):
+def block(surf, rect, active=True):
     """Metallic block over ``rect`` (bounding box of its cells), with a drop shadow."""
     shadow = pygame.Surface(rect.size, pygame.SRCALPHA)
     pygame.draw.rect(shadow, (0, 0, 0, 70), shadow.get_rect(), border_radius=8)
@@ -49,4 +71,6 @@ def block(surf, rect):
     pygame.draw.rect(surf, BLOCK, body, border_radius=8)
     pygame.draw.rect(surf, BLOCK_LIGHT, body.inflate(-body.width // 3, -body.height // 2).move(0, -body.height // 6),
                      border_radius=6)
-    pygame.draw.rect(surf, BLOCK_LIGHT, body, 2, border_radius=8)
+    pygame.draw.rect(surf, BLOCK_LIGHT if active else BLOCK_DARK, body, 2 if active else 1, border_radius=8)
+    if active and rect.width < 60:
+        pygame.draw.rect(surf, HINT, rect, 2, border_radius=8)   # ring marks the controlled cube

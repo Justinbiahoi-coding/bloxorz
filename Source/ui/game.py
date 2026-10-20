@@ -8,6 +8,7 @@ _MOVE_KEYS = {
     pygame.K_RIGHT: 'RIGHT',
     pygame.K_UP: 'DOWN',
     pygame.K_DOWN: 'UP',
+    pygame.K_SPACE: 'SWITCH',   # change the active cube when the block is split
 }
 
 
@@ -104,12 +105,16 @@ class Game:
             for x in range(self.level.size):
                 kind = self.session.tile_at(x, y)
                 if kind != 'void':
-                    below = y + 1 >= self.level.size or self.session.tile_at(x, y + 1) == 'void'
+                    below = y + 1 >= self.level.size or self.session.tile_at(x, y + 1) in ('void', 'bridge_closed')
                     rooftop.tile(self.surface, self.cell_rect(x, y), kind, below)
 
     def draw_block(self):
         rects = [self.cell_rect(x, y) for x, y in self.session.block_cells()]
-        rooftop.block(self.surface, rects[0].unionall(rects[1:]))
+        if self.session.is_split:              # two cubes; the controlled one is highlighted
+            for i, rect in enumerate(rects):
+                rooftop.block(self.surface, rect, active=i == self.session.active)
+        else:
+            rooftop.block(self.surface, rects[0].unionall(rects[1:]))
 
     def draw_map_square(self, x, y, color):
         rect = pygame.Rect(
@@ -123,7 +128,7 @@ class Game:
     def draw_cells(self, cells, color):
         for x, y in cells:
             self.draw_map_square(x, y, color)
-        if len(cells) == 2:  # fill the gap between the two halves
+        if len(cells) == 2 and abs(cells[0][0] - cells[1][0]) + abs(cells[0][1] - cells[1][1]) == 1:  # fill the gap between the two halves
             (x1, y1), (x2, y2) = cells
             self.draw_map_square((x1 + x2) / 2, (y1 + y2) / 2, color)
 

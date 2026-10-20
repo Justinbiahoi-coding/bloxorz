@@ -1,0 +1,92 @@
+{
+ "level": 42,
+ "size": 14,
+ "start": [
+  3,
+  1
+ ],
+ "end": [
+  1,
+  12
+ ],
+ "tiles": [
+  "     bb    bbb",
+  "   bbbbbb  beb",
+  "bbbbbbsbbbbbbb",
+  "bbbbs  bbbbbl ",
+  "bbb      bbb  ",
+  " b        b   ",
+  " b        b   ",
+  " bl      qb   ",
+  " bb      bb   ",
+  "  h      h    ",
+  "              ",
+  "              ",
+  "              ",
+  "              "
+ ],
+ "switches": [
+  {
+   "at": [
+    9,
+    9
+   ],
+   "bridges": [
+    [
+     2,
+     7,
+     "onoff"
+    ]
+   ]
+  },
+  {
+   "at": [
+    2,
+    9
+   ],
+   "bridges": [
+    [
+     12,
+     3,
+     "onoff"
+    ]
+   ]
+  },
+  {
+   "at": [
+    4,
+    3
+   ],
+   "bridges": [
+    [
+     2,
+     7,
+     "off"
+    ],
+    [
+     12,
+     3,
+     "off"
+    ]
+   ]
+  },
+  {
+   "at": [
+    6,
+    2
+   ],
+   "bridges": [
+    [
+     2,
+     7,
+     "off"
+    ],
+    [
+     12,
+     3,
+     "off"
+    ]
+   ]
+  }
+ ]
+}

@@ -1,0 +1,28 @@
+{
+ "level": 24,
+ "size": 14,
+ "start": [
+  5,
+  1
+ ],
+ "end": [
+  7,
+  6
+ ],
+ "tiles": [
+  "   fffffff    ",
+  "   fffffff    ",
+  "bbbb     bbb  ",
+  "bbb       bb  ",
+  "bbb       bb  ",
+  "bbb  bbbbfffff",
+  "bbb  bbbbfffff",
+  "     beb  ffbf",
+  "     bbb  ffff",
+  "              ",
+  "              ",
+  "              ",
+  "              ",
+  "              "
+ ]
+}

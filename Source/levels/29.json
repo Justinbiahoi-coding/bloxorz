@@ -1,0 +1,43 @@
+{
+ "level": 29,
+ "size": 15,
+ "start": [
+  1,
+  1
+ ],
+ "end": [
+  3,
+  7
+ ],
+ "tiles": [
+  "bbbb   b   bbbb",
+  "bbbb   b   bbvb",
+  "bbbbbbbbbbbbbbb",
+  "      beb      ",
+  "      bbb      ",
+  "               ",
+  "               ",
+  "               ",
+  "               ",
+  "               ",
+  "               ",
+  "               ",
+  "               ",
+  "               ",
+  "               "
+ ],
+ "splits": [
+  {
+   "at": [
+    13,
+    1
+   ],
+   "cubes": [
+    12,
+    1,
+    2,
+    1
+   ]
+  }
+ ]
+}

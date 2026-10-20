@@ -7,6 +7,9 @@ from .problem import Bloxorz
 from .solver import solve_problem
 
 
+_TILE_NAMES = {'b': 'floor', 'e': 'goal', 'f': 'fragile', 's': 'soft', 'h': 'heavy', 'v': 'split'}
+
+
 class GameSession:
     def __init__(self, level_number):
         self.problem = Bloxorz(level_number)
@@ -25,15 +28,26 @@ class GameSession:
         return self.problem.goal_test(self.state)
 
     def tile_at(self, x, y):
-        """Tile kind at column x, row y: 'floor', 'void' or 'goal'."""
-        if [x, y] == list(self.goal.position):
-            return 'goal'
-        return 'floor' if self.level.is_tile_available(x, y) else 'void'
+        """Tile kind at column x, row y, given the current bridge states."""
+        kind = self.level.kinds.get((x, y))
+        if kind is None:
+            return 'void'
+        if kind in 'lrkq':
+            return 'bridge_open' if self.state.bridges[self.level.bridge_index[(x, y)]] else 'bridge_closed'
+        return _TILE_NAMES[kind]
 
     def block_cells(self, state=None):
-        """Cells (x, y) the block occupies in ``state`` (default: current)."""
+        """Cells (x, y) the block occupies in ``state`` (default: current); split cubes are two apart cells."""
         p = (state or self.state).position
         return [(p[i], p[i + 1]) for i in range(0, len(p), 2)]
+
+    @property
+    def is_split(self):
+        return self.state.split
+
+    @property
+    def active(self):
+        return self.state.active
 
     def actions(self):
         return self.problem.actions(self.state)
@@ -54,7 +68,7 @@ class GameSession:
 
     def set_state(self, state, increment_moves=True):
         """Set the state directly; used by solution playback views."""
-        if self.state.position != state.position:
+        if self.state != state:
             self.state = state
             if increment_moves:
                 self.moves += 1
