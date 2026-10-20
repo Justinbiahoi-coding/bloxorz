@@ -60,14 +60,19 @@ def tile(surf, rect, kind, edge_below, texture=None):
     hi.fill((255, 255, 255, 40))
     surf.blit(hi, rect.topleft)
     cx, cy, r = rect.centerx, rect.centery, rect.width // 3
-    if kind == 'goal':
-        pygame.draw.circle(surf, PIT, rect.center, int(rect.width * 0.34))     # the hatch down to the next floor
-        ring = rect.inflate(-rect.w // 6, -rect.h // 6)
-        width = max(3, rect.width // 14)
-        pygame.draw.circle(surf, (30, 30, 34), rect.center, ring.w // 2, width)
-        for i in range(8):                                                     # hazard-striped rim
-            a = i * math.pi / 4
-            pygame.draw.arc(surf, (250, 200, 40), ring, a, a + math.pi / 8, width)
+    if kind == 'goal':                                   # stairs down to the next floor, RPG style
+        steps = 5
+        well = rect.inflate(-max(4, rect.w // 8), -max(4, rect.h // 10))
+        for i in range(steps):                           # each step lower and darker than the one above
+            k = i / (steps - 1)
+            y0 = well.y + well.h * i // steps
+            step = pygame.Rect(well.x, y0, well.w, well.h // steps + 1)
+            pygame.draw.rect(surf, tuple(int(a + (b - a) * k) for a, b in zip((196, 184, 162), (34, 30, 30))), step)
+            pygame.draw.line(surf, tuple(int(c * (1 - 0.6 * k)) for c in (240, 230, 210)), step.topleft, step.topright, 2)
+        rail = max(3, rect.w // 12)
+        for x in (well.x - rail, well.right):            # side walls of the stairwell
+            pygame.draw.rect(surf, (88, 74, 60), (x, well.y, rail, well.h))
+        pygame.draw.rect(surf, (60, 50, 42), well.inflate(2 * rail, 2), 2)
     elif kind == 'fragile':
         pygame.draw.lines(surf, CONCRETE_SIDE, False, [(rect.x + 6, rect.y + 8), (cx, cy), (rect.right - 8, cy + 6)], 2)
     elif kind == 'soft':

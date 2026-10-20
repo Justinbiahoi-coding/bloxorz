@@ -1,9 +1,9 @@
-"""The skyscraper around a floor, drawn once into the floor's background.
+"""The building around a floor, drawn once into the floor's background.
 
-Top floor: a roof (gravel, parapet, AC units, water tank, vents, solar panels, antenna).
-Lower floors: an office cut-away (wood floor, glass curtain wall, desks, plants, columns).
-Every floor also shows the building's south facade dropping to the bottom of the screen,
-and the empty cells of the playfield as dark shafts with the floor below faintly visible.
+Top floor: the open roof (gravel, parapet, rooftop equipment, antenna) above the tower's facade.
+Lower floors: closed rooms in the style of top-down RPG interiors: dark outside, a tall back wall
+with things hung on it, wall caps on the other sides, and furniture laid out the way offices are:
+storage and desks against the walls, desk pairs and meeting tables in the middle, the path kept clear.
 """
 import math
 import random
@@ -14,7 +14,7 @@ from . import sprites
 
 MX, MY = 3, 2                                # tiles of building left/right and above/below the playfield
 ROOF, ROOF_DOT, PARAPET = (98, 94, 90), (120, 116, 110), (176, 170, 160)
-WOOD, WOOD_LINE, GLASS = (104, 90, 76), (92, 79, 66), (170, 210, 235)
+WOOD, WOOD_LINE = (104, 90, 76), (92, 79, 66)
 WALL, MULLION, WINDOW, LIT = (118, 112, 106), (92, 88, 84), (64, 92, 132), (255, 206, 120)
 
 
@@ -24,13 +24,15 @@ def _shadow(surf, rect, k=0.18):
     surf.blit(layer, (rect.x + int(rect.w * k * 0.5) + 2, rect.y - int(rect.h * k * 0.3) + 2))
 
 
-def _sprite(surf, name, rect, turned=False):
-    """Draw the generated sprite for a prop (with a soft shadow), turned 90 degrees if asked; False if none."""
-    img = sprites.prop(name, rect.h, rect.w) if turned else sprites.prop(name, rect.w, rect.h)
+def _sprite(surf, name, rect, angle=0):
+    """Draw the generated sprite for a prop with a soft shadow, rotated by angle (0/90/180/270,
+    counter-clockwise, so 90 puts the sprite's top edge on the left). False if there is no sprite."""
+    side = angle % 180 == 90
+    img = sprites.prop(name, rect.h, rect.w) if side else sprites.prop(name, rect.w, rect.h)
     if img is None:
         return False
-    if turned:
-        img = pygame.transform.rotate(img, 90)
+    if angle:
+        img = pygame.transform.rotate(img, angle)
     pos = img.get_rect(center=rect.center)
     shadow = pygame.mask.from_surface(img).to_surface(setcolor=(0, 0, 0, 80), unsetcolor=(0, 0, 0, 0))
     surf.blit(shadow, (pos.x + max(2, rect.w // 14), pos.y + max(2, rect.h // 14)))
@@ -223,22 +225,127 @@ def _furnish(surf, game, rng, roof, fp):
             cells = {(x + i, y + j) for i in range(w) for j in range(h)}
             if cells <= free:
                 free -= cells
-                _put(surf, kind, _rect(game, x, y, w, h), turned)
+                _put(surf, kind, _rect(game, x, y, w, h), 90 if turned else 0)
                 continue
         if (x, y) in near or rng.random() < 0.15:
             free.discard((x, y))
-            _put(surf, rng.choice(props['small']), _rect(game, x, y), False)
+            _put(surf, rng.choice(props['small']), _rect(game, x, y))
     return beacon
 
 
 FILL = {'vent': 0.55, 'plant': 0.8, 'cooler': 0.8, 'boxes': 0.85, 'hvac': 0.85, 'crate': 0.85}   # share of the cell
 
 
-def _put(surf, kind, rect, turned):
+def _rug(surf, rect):
+    pygame.draw.rect(surf, (128, 52, 52), rect, border_radius=6)
+    pygame.draw.rect(surf, (196, 150, 90), rect.inflate(-rect.w // 10, -rect.h // 10), 3, border_radius=4)
+    pygame.draw.rect(surf, (150, 70, 66), rect.inflate(-rect.w // 4, -rect.h // 4), 2, border_radius=3)
+
+
+def _furnish_office(surf, game, rng, fp):
+    """Office layout: aisle (the path) kept clear; along the walls storage and desks facing the wall,
+    in the middle back-to-back desk pairs and meeting tables on rugs; loose cells by the path get plants,
+    boxes or cabinets."""
+    fx0, fy0, fx1, fy1 = fp
+    top = fy0 + 1                                                 # row fy0 is the back wall
+    walk = set(game.level.kinds)
+    free = {(x, y) for x in range(fx0, fx1 + 1) for y in range(top, fy1 + 1)} - walk
+    near = {(x, y) for x, y in free if any((x + dx, y + dy) in walk for dx in (-1, 0, 1) for dy in (-1, 0, 1))}
+
+    def take(kind, x, y, w=1, h=1, angle=0):
+        free.difference_update((x + i, y + j) for i in range(w) for j in range(h))
+        _put(surf, kind, _rect(game, x, y, w, h), angle)
+
+    x = fx0                                                       # back wall: shelves and storage
+    while x <= fx1:
+        if (x, top) in free:
+            if (x + 1, top) in free and rng.random() < 0.5:
+                take('shelf', x, top, 2, 1)
+                x += 2
+                continue
+            take(rng.choice(['cabinet', 'printer', 'cooler', 'desk', 'plant']), x, top)
+        x += 1
+    for x in range(fx0, fx1 + 1):                                 # front wall: desks facing it
+        if (x, fy1) in free:
+            take('desk' if rng.random() < 0.7 else 'plant', x, fy1, angle=180)
+    for y in range(top + 1, fy1):                                 # side walls: desks facing them
+        for x, angle in ((fx0, 90), (fx1, 270)):
+            if (x, y) in free:
+                take('desk' if rng.random() < 0.6 else rng.choice(['cabinet', 'plant']), x, y, angle=angle)
+
+    meetings = 0
+    for x, y in sorted(free, key=lambda c: rng.random()):         # middle: meeting tables on rugs, desk pairs
+        if (x, y) not in free:
+            continue
+        block = {(x + i, y + j) for i in range(2) for j in range(2)}
+        if block <= free and meetings < 2 and rng.random() < 0.5:   # one or two meeting corners per floor
+            meetings += 1
+            _rug(surf, _rect(game, x - 0.1, y - 0.1, 2.2, 2.2))
+            take('meeting', x, y, 2, 2)
+        elif (x, y + 1) in free and rng.random() < 0.6:
+            take('desk', x, y, angle=180)                         # back to back, chairs outwards
+            take('desk', x, y + 1)
+        elif (x, y) in near or rng.random() < 0.2:
+            take(rng.choice(['plant', 'boxes', 'cabinet', 'cooler', 'plant']), x, y)
+
+
+def _office_shell(surf, game, fp, rng):
+    """Walls: a tall back wall with things on it, thin wall caps elsewhere, soft shade along the walls."""
+    fx0, fy0, fx1, fy1 = fp
+    sq = game.square_size
+    room = _rect(game, fx0, fy0, fx1 - fx0 + 1, fy1 - fy0 + 1)
+    cap = max(4, int(sq * 0.22))
+    face = _rect(game, fx0, fy0, fx1 - fx0 + 1, 1)
+    pygame.draw.rect(surf, (222, 210, 186), face)                                  # painted wall
+    pygame.draw.rect(surf, (238, 228, 206), (face.x, face.y, face.w, face.h // 3))  # lighter upper band
+    pygame.draw.rect(surf, (110, 82, 58), (face.x, face.bottom - face.h // 7, face.w, face.h // 7))   # skirting
+    x = fx0 + 1
+    while x < fx1:                                                # things hung on the back wall
+        kind = rng.choice(['board', 'clock', 'frame', 'frame', 'notice', None])
+        r = _rect(game, x, fy0)
+        if kind == 'board' and x + 1 < fx1:
+            wb = _rect(game, x + 0.15, fy0 + 0.15, 1.7, 0.55)
+            pygame.draw.rect(surf, (248, 248, 250), wb)
+            pygame.draw.rect(surf, (150, 150, 160), wb, 2)
+            for i in range(3):
+                y = wb.y + wb.h * (i + 1) // 4
+                pygame.draw.line(surf, ((60, 90, 170), (190, 60, 60), (60, 140, 90))[i], (wb.x + 6, y), (wb.x + wb.w // (2 + i), y), 2)
+            x += 2
+            continue
+        if kind == 'clock':
+            pygame.draw.circle(surf, (250, 250, 250), (r.centerx, r.y + r.h * 2 // 5), r.w // 5)
+            pygame.draw.circle(surf, (60, 60, 66), (r.centerx, r.y + r.h * 2 // 5), r.w // 5, 2)
+            c = (r.centerx, r.y + r.h * 2 // 5)
+            pygame.draw.line(surf, (40, 40, 44), c, (c[0], c[1] - r.w // 7), 2)
+            pygame.draw.line(surf, (40, 40, 44), c, (c[0] + r.w // 9, c[1]), 2)
+        elif kind == 'frame':
+            fr = _rect(game, x + 0.22, fy0 + 0.15, 0.56, 0.45)
+            pygame.draw.rect(surf, (90, 66, 44), fr)
+            pygame.draw.rect(surf, rng.choice([(110, 160, 190), (200, 150, 90), (120, 170, 110)]), fr.inflate(-6, -6))
+        elif kind == 'notice':
+            nb = _rect(game, x + 0.15, fy0 + 0.15, 0.7, 0.5)
+            pygame.draw.rect(surf, (176, 132, 88), nb)
+            for _ in range(4):
+                pygame.draw.rect(surf, rng.choice([(250, 240, 160), (250, 250, 250), (180, 220, 250)]),
+                                 (rng.randrange(nb.x + 3, nb.right - 10), rng.randrange(nb.y + 3, nb.bottom - 10), 8, 8))
+        x += 1
+    shade = pygame.Surface((room.w, sq // 2), pygame.SRCALPHA)    # contact shadow under the back wall
+    for i in range(shade.get_height()):
+        shade.fill((0, 0, 0, max(0, 70 - i * 140 // sq)), (0, i, room.w, 1))
+    surf.blit(shade, (room.x, face.bottom))
+    wall = (58, 54, 62)
+    pygame.draw.rect(surf, wall, (room.x - cap, room.y - cap, room.w + 2 * cap, cap))      # top cap
+    pygame.draw.rect(surf, wall, (room.x - cap, room.y - cap, cap, room.h + 2 * cap))      # left
+    pygame.draw.rect(surf, wall, (room.right, room.y - cap, cap, room.h + 2 * cap))        # right
+    pygame.draw.rect(surf, wall, (room.x - cap, room.bottom, room.w + 2 * cap, cap))       # bottom
+    pygame.draw.rect(surf, (96, 92, 102), room.inflate(2 * cap, 2 * cap), 2)
+
+
+def _put(surf, kind, rect, angle=0):
     k = FILL.get(kind, 0.93)
     r = pygame.Rect(0, 0, int(rect.w * k), int(rect.h * k))
     r.center = rect.center
-    if not _sprite(surf, kind, r, turned):
+    if not _sprite(surf, kind, r, angle):
         draw_code_prop(surf, kind, r)
 
 
@@ -248,7 +355,10 @@ def bake(background, game, floor, count):
     fx0, fy0, fx1, fy1, _ = _footprint(game)
     roof = floor == 0
 
-    _facade(background, game, fx0, fx1, fy1, floor, count, rng)
+    if roof:
+        _facade(background, game, fx0, fx1, fy1, floor, count, rng)
+    else:
+        background.fill((8, 8, 12))                               # a closed room: nothing outside
     slab = _rect(game, fx0, fy0, fx1 - fx0 + 1, fy1 - fy0 + 1)
     textured = sprites.fill(background, slab, 'gravel' if roof else 'wood', int(game.square_size))
     if textured:                                                 # calm the texture so the playfield stays the focus
@@ -266,16 +376,17 @@ def bake(background, game, floor, count):
                 pygame.draw.line(background, WOOD_LINE, (slab.x, y), (slab.right, y), 1)
 
     sq = game.square_size
-    beacon = _furnish(background, game, rng, roof, (fx0, fy0, fx1, fy1))
+    if roof:
+        beacon = _furnish(background, game, rng, True, (fx0, fy0, fx1, fy1))
+    else:
+        beacon = None
+        _furnish_office(background, game, rng, (fx0, fy0, fx1, fy1))
+        _office_shell(background, game, (fx0, fy0, fx1, fy1), rng)
 
-    edge = max(4, int(sq * 0.2))
     if roof:                                                     # parapet with its front face
+        edge = max(4, int(sq * 0.2))
         pygame.draw.rect(background, PARAPET, slab, edge)
         pygame.draw.rect(background, (140, 134, 126), (slab.x, slab.bottom, slab.w, edge))
-    else:                                                        # glass curtain wall
-        pygame.draw.rect(background, GLASS, slab, max(3, edge // 2))
-        for x in range(slab.x, slab.right, sq):
-            pygame.draw.line(background, (120, 150, 170), (x, slab.y), (x, slab.y + edge), 2)
     return beacon
 
 
