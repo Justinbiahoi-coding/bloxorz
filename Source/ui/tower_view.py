@@ -31,7 +31,9 @@ class TowerGame:
         if i not in self.skies:
             try:
                 img = pygame.image.load(str(BACKGROUNDS / 'sky_{}.png'.format(i))).convert()
-                self.skies[i] = pygame.transform.smoothscale(img, (self.w, self.h))
+                k = max(self.w / img.get_width(), self.h / img.get_height())     # cover the screen, crop the rest
+                big = pygame.transform.smoothscale(img, (int(img.get_width() * k) + 1, int(img.get_height() * k) + 1))
+                self.skies[i] = big.subsurface(((big.get_width() - self.w) // 2, (big.get_height() - self.h) // 2, self.w, self.h)).copy()
             except (FileNotFoundError, pygame.error):
                 self.skies[i] = None        # Game falls back to the procedural sky
         return self.skies[i]

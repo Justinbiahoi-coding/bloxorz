@@ -17,8 +17,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Graphics related
 COLOR_BACKGROUND = [15, 125, 117]
 FPS = 60
-H_SIZE = 650  # Height of window size
-W_SIZE = 880  # Width of window size
 
 STATE_MENU = 'MENU'
 STATE_INGAME = 'INGAME'
@@ -35,7 +33,8 @@ class App:
         pygame.init()
 
         self.clock = pygame.time.Clock()
-        self.surface = pygame.display.set_mode((W_SIZE, H_SIZE))
+        self.surface = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)   # the display's own resolution
+        self.w, self.h = self.surface.get_size()
         pygame.display.set_caption('Bloxorz Tower')
 
         self.level_numbers = sorted(
@@ -72,8 +71,8 @@ class App:
     def _build_menus(self):
         self.menu = pygame_menu.Menu(
             title='Bloxorz Menu',
-            width=W_SIZE,
-            height=H_SIZE,
+            width=self.w,
+            height=self.h,
             surface=self.surface,
             theme=self._make_theme(COLOR_BACKGROUND),
             onclose=pygame_menu.events.NONE,
@@ -81,8 +80,8 @@ class App:
 
         self.free_play_menu = pygame_menu.Menu(
             title='Free Play',
-            width=W_SIZE,
-            height=H_SIZE,
+            width=self.w,
+            height=self.h,
             surface=self.surface,
             theme=self._make_theme((30, 50, 107)),
             onclose=pygame_menu.events.NONE,
@@ -96,8 +95,8 @@ class App:
 
         self.algorithms_select_menu = pygame_menu.Menu(
             title='Algorithms',
-            width=W_SIZE,
-            height=H_SIZE,
+            width=self.w,
+            height=self.h,
             surface=self.surface,
             theme=self._make_theme((27, 90, 26)),
             onclose=pygame_menu.events.NONE,
@@ -137,19 +136,19 @@ class App:
         self.menu.disable()
         self.surface.fill(COLOR_BACKGROUND)
         session = GameSession(self.map_number)
-        self.game = Game(self.surface, H_SIZE, W_SIZE, session, True)
+        self.game = Game(self.surface, self.h, self.w, session, True)
         self.state = STATE_INGAME
         self._play_music()
 
     def _start_tower(self):
         self.menu.disable()
-        self.tower = TowerGame(self.surface, H_SIZE, W_SIZE)
+        self.tower = TowerGame(self.surface, self.h, self.w)
         self.state = STATE_TOWER
 
     def _start_algorithms(self):
         self.menu.disable()
         self.algorithm_menu = AlgorithmMenu(
-            self.surface, H_SIZE, W_SIZE, self.map_number, self.algorithm)
+            self.surface, self.h, self.w, self.map_number, self.algorithm)
         self.state = STATE_VIEWING_STATS
 
     def _play_music(self):
@@ -184,14 +183,14 @@ class App:
                 if solution is not None:
                     self.state = STATE_VIEWING_ALGORITHM
                     self.algorithm_show = AlgorithmShow(
-                        self.surface, H_SIZE, W_SIZE, self.map_number, solution,
+                        self.surface, self.h, self.w, self.map_number, solution,
                         "Level {}, Algorithm {}, Showing Solution".format(
                             self.map_number, self.algorithm), 500)
                 explored_nodes = self.algorithm_menu.show_explored_nodes()
                 if explored_nodes is not None:
                     self.state = STATE_VIEWING_ALGORITHM
                     self.algorithm_show = AlgorithmShow(
-                        self.surface, H_SIZE, W_SIZE, self.map_number,
+                        self.surface, self.h, self.w, self.map_number,
                         explored_nodes,
                         "Level {}, Algorithm {}, Showing Explored Nodes".format(
                             self.map_number, self.algorithm), 150, False)

@@ -1,10 +1,24 @@
+import json
 import math
+from functools import lru_cache
 
 import pygame
 
+from engine.level import BASE_DIR
 from engine.problem import DIRS
 
 from . import blockfx, rooftop
+
+
+@lru_cache(maxsize=None)
+def _biggest_map():
+    return max(json.load(open(f, encoding='utf-8'))['size'] for f in (BASE_DIR / 'levels').glob('*.json'))
+
+
+def fit_tile(width, height):
+    """Tile size shared by every map: the biggest one just fits the screen (room left for HUD and the tower meter)."""
+    return max(16, min(96, int(min(width - 280, height - 140) / _biggest_map())))
+
 
 # Keyboard key -> engine action.
 _MOVE_KEYS = {
@@ -20,7 +34,7 @@ class Game:
     """Pygame view/controller for an engine GameSession."""
 
     def __init__(self, surface, W_HEIGHT_SIZE, W_WIDTH_SIZE, session,
-                 show_hint=False, background=None):
+                 show_hint=False, background=None, tile=None):
         self.surface = surface
         self.W_HEIGHT_SIZE = W_HEIGHT_SIZE
         self.W_WIDTH_SIZE = W_WIDTH_SIZE
@@ -30,18 +44,11 @@ class Game:
         self.session = session
         self.level = session.level
 
-        # drawing
-        self.square_size = 50
-        self.starting_x = self.CENTER_X - self.level.size / 2 * self.square_size
-        self.starting_y = self.CENTER_Y - self.level.size / 2 * self.square_size
-        self.ending_x = self.CENTER_X + self.level.size / 2 * self.square_size
-        self.ending_y = self.CENTER_Y + self.level.size / 2 * self.square_size
-        if self.starting_x < 190:
-            self.starting_x = 190
-            self.starting_y = 75
-            self.ending_x = 690
-            self.ending_y = 575
-            self.square_size = (self.ending_x - self.starting_x) / self.level.size
+        # drawing: the same tile size on every map, board centred
+        self.square_size = tile or fit_tile(W_WIDTH_SIZE, W_HEIGHT_SIZE)
+        half = self.level.size / 2 * self.square_size
+        self.starting_x, self.starting_y = self.CENTER_X - half, self.CENTER_Y - half
+        self.ending_x, self.ending_y = self.CENTER_X + half, self.CENTER_Y + half
 
         self.unavailable_color = (10, 10, 10)
         self.available_color = (50, 50, 100)

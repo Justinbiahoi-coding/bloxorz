@@ -18,8 +18,13 @@ def font(size):
     return _fonts[size]
 
 
+def scale(surf):
+    """UI scale: 1 up to a 720px-high screen, growing to 1.8 on big displays."""
+    return max(1.0, min(1.8, surf.get_height() / 720))
+
+
 def text(surf, string, size, color, **anchor):
-    img = font(size).render(string, True, color)
+    img = font(int(size * scale(surf))).render(string, True, color)
     surf.blit(img, img.get_rect(**anchor))
     return img.get_rect(**anchor)
 
@@ -33,21 +38,25 @@ def panel(surf, rect, alpha=185):
 
 def draw_hud(surf, floor, count, moves):
     """Top-left card: current floor and the moves taken on it."""
-    box = pygame.Rect(20, 20, 190, 82)
+    k = scale(surf)
+    box = pygame.Rect(int(20 * k), int(20 * k), int(190 * k), int(82 * k))
     panel(surf, box)
-    text(surf, 'FLOOR', 15, GOLD, topleft=(box.x + 18, box.y + 10))
-    text(surf, '{} / {}'.format(floor + 1, count), 34, PAPER, topleft=(box.x + 18, box.y + 28))
-    text(surf, str(moves), 34, PAPER, topright=(box.right - 18, box.y + 28))
-    text(surf, 'MOVES', 15, GOLD, topright=(box.right - 18, box.y + 10))
+    pad = int(18 * k)
+    text(surf, 'FLOOR', 15, GOLD, topleft=(box.x + pad, box.y + int(10 * k)))
+    text(surf, '{} / {}'.format(floor + 1, count), 34, PAPER, topleft=(box.x + pad, box.y + int(28 * k)))
+    text(surf, str(moves), 34, PAPER, topright=(box.right - pad, box.y + int(28 * k)))
+    text(surf, 'MOVES', 15, GOLD, topright=(box.right - pad, box.y + int(10 * k)))
 
 
 def draw_tower(surf, floor, count):
     """Right edge: the building as a stack of floors; the one you are on glows."""
+    k = scale(surf)
     w, h = surf.get_size()
-    top, bottom, x = 110, h - 70, w - 44
+    bar = int(24 * k)
+    top, bottom, x = int(110 * k), h - int(70 * k), w - int(44 * k)
     slot = (bottom - top) / count
     for i in range(count):
-        rect = pygame.Rect(x, int(top + i * slot) + 2, 24, max(4, int(slot) - 5))
+        rect = pygame.Rect(x, int(top + i * slot) + 2, bar, max(4, int(slot) - 5))
         if i == floor:
             glow = pygame.Surface((rect.w + 16, rect.h + 16), pygame.SRCALPHA)
             pygame.draw.rect(glow, (*CORAL, 90), glow.get_rect(), border_radius=10)
@@ -58,19 +67,20 @@ def draw_tower(surf, floor, count):
         layer = pygame.Surface(rect.size, pygame.SRCALPHA)
         pygame.draw.rect(layer, color, layer.get_rect(), border_radius=5)
         surf.blit(layer, rect.topleft)
-    text(surf, 'TOP', 13, PAPER, midbottom=(x + 12, top - 4))
-    text(surf, 'STREET', 13, PAPER, midtop=(x + 12, bottom + 4))
+    text(surf, 'TOP', 13, PAPER, midbottom=(x + bar // 2, top - 4))
+    text(surf, 'STREET', 13, PAPER, midtop=(x + bar // 2, bottom + 4))
 
 
 def draw_finish(surf, total_moves, count):
+    k = scale(surf)
     w, h = surf.get_size()
     shade = pygame.Surface((w, h), pygame.SRCALPHA)
     shade.fill((*INK, 150))
     surf.blit(shade, (0, 0))
-    box = pygame.Rect(0, 0, 440, 230)
+    box = pygame.Rect(0, 0, int(440 * k), int(230 * k))
     box.center = (w // 2, h // 2)
     panel(surf, box, 235)
-    text(surf, 'STREET LEVEL', 16, GOLD, midtop=(box.centerx, box.y + 26))
-    text(surf, 'You made it down', 40, PAPER, midtop=(box.centerx, box.y + 52))
-    text(surf, '{} floors  -  {} moves'.format(count, total_moves), 26, PAPER, midtop=(box.centerx, box.y + 112))
-    text(surf, 'Press ESC for the menu', 20, CORAL, midtop=(box.centerx, box.y + 168))
+    text(surf, 'STREET LEVEL', 16, GOLD, midtop=(box.centerx, box.y + int(26 * k)))
+    text(surf, 'You made it down', 40, PAPER, midtop=(box.centerx, box.y + int(52 * k)))
+    text(surf, '{} floors  -  {} moves'.format(count, total_moves), 26, PAPER, midtop=(box.centerx, box.y + int(112 * k)))
+    text(surf, 'Press ESC for the menu', 20, CORAL, midtop=(box.centerx, box.y + int(168 * k)))
