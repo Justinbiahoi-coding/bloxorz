@@ -30,10 +30,11 @@ class App:
 
     def __init__(self):
         os.environ.setdefault('SDL_VIDEO_CENTERED', '1')
+        os.environ.setdefault('SDL_VIDEO_MAC_FULLSCREEN_SPACES', '1')   # macOS: fullscreen as its own Space, so Cmd+Tab and swipes still work
         pygame.init()
 
         self.clock = pygame.time.Clock()
-        self.surface = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)   # the display's own resolution
+        self.surface = pygame.display.set_mode((0, 0), pygame.FULLSCREEN | pygame.SCALED, vsync=1)   # the display's own resolution
         self.w, self.h = self.surface.get_size()
         pygame.display.set_caption('Bloxorz Tower')
 

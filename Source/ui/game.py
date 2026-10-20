@@ -1,23 +1,13 @@
-import json
 import math
-from functools import lru_cache
 
 import pygame
 
-from engine.level import BASE_DIR
 from engine.problem import DIRS
 
 from . import blockfx, rooftop
 
 
-@lru_cache(maxsize=None)
-def _biggest_map():
-    return max(json.load(open(f, encoding='utf-8'))['size'] for f in (BASE_DIR / 'levels').glob('*.json'))
-
-
-def fit_tile(width, height):
-    """Tile size shared by every map: the biggest one just fits the screen (room left for HUD and the tower meter)."""
-    return max(16, min(96, int(min(width - 280, height - 140) / _biggest_map())))
+MAX_TILE = 112
 
 
 # Keyboard key -> engine action.
@@ -44,11 +34,14 @@ class Game:
         self.session = session
         self.level = session.level
 
-        # drawing: the same tile size on every map, board centred
-        self.square_size = tile or fit_tile(W_WIDTH_SIZE, W_HEIGHT_SIZE)
-        half = self.level.size / 2 * self.square_size
-        self.starting_x, self.starting_y = self.CENTER_X - half, self.CENTER_Y - half
-        self.ending_x, self.ending_y = self.CENTER_X + half, self.CENTER_Y + half
+        # drawing: small maps are zoomed in (up to MAX_TILE), the biggest one just fits; board centred
+        xs, ys = [x for x, _ in self.level.kinds], [y for _, y in self.level.kinds]
+        span = max(max(xs) - min(xs), max(ys) - min(ys)) + 1
+        self.square_size = tile or min(MAX_TILE, int(min(W_WIDTH_SIZE - 280, W_HEIGHT_SIZE - 140) / span))
+        self.starting_x = self.CENTER_X - (min(xs) + max(xs) + 1) / 2 * self.square_size
+        self.starting_y = self.CENTER_Y - (min(ys) + max(ys) + 1) / 2 * self.square_size
+        self.ending_x = self.starting_x + self.level.size * self.square_size
+        self.ending_y = self.starting_y + self.level.size * self.square_size
 
         self.unavailable_color = (10, 10, 10)
         self.available_color = (50, 50, 100)

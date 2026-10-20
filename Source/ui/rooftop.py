@@ -44,8 +44,8 @@ def tile(surf, rect, kind, edge_below):
     pygame.draw.rect(surf, CONCRETE_LINE, rect, 1)
     cx, cy, r = rect.centerx, rect.centery, rect.width // 3
     if kind == 'goal':
-        pygame.draw.rect(surf, PIT, rect.inflate(-rect.width // 3, -rect.height // 3), border_radius=4)
-        pygame.draw.circle(surf, RING, rect.center, rect.width * 2 // 5, 2)
+        pygame.draw.circle(surf, PIT, rect.center, int(rect.width * 0.34))
+        pygame.draw.circle(surf, RING, rect.center, int(rect.width * 0.42), max(2, rect.width // 20))
     elif kind == 'fragile':
         pygame.draw.lines(surf, CONCRETE_SIDE, False, [(rect.x + 6, rect.y + 8), (cx, cy), (rect.right - 8, cy + 6)], 2)
     elif kind == 'soft':
