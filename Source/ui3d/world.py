@@ -70,3 +70,29 @@ def point_camera(cam, target):
     import math
     d = target - cam.position
     cam.rotation = (-math.degrees(math.atan2(d.y, math.hypot(d.x, d.z))), math.degrees(math.atan2(d.x, d.z)), 0)
+
+
+def paint_by_height(np, low=(0.17, 0.19, 0.28), high=(0.86, 0.89, 0.97), snow_line=0.6, axis=1):
+    """Give an untextured mesh (e.g. from Hunyuan3D) vertex colours: rock below the snow line, snow above.
+    Heights are read from the raw vertex data; glTF files keep y as up there (axis=1)."""
+    from panda3d.core import GeomVertexFormat, GeomVertexReader, GeomVertexWriter
+    lo_z, hi_z = None, None
+    geoms = [(node, i) for node in np.findAllMatches('**/+GeomNode') for i in range(node.node().getNumGeoms())]
+    for node, i in geoms:                                   # find the height range first
+        reader = GeomVertexReader(node.node().getGeom(i).getVertexData(), 'vertex')
+        while not reader.isAtEnd():
+            z = reader.getData3()[axis]
+            lo_z = z if lo_z is None else min(lo_z, z)
+            hi_z = z if hi_z is None else max(hi_z, z)
+    span = max(1e-6, hi_z - lo_z)
+    for node, i in geoms:
+        geom = node.node().modifyGeom(i)
+        vdata = geom.modifyVertexData()
+        if not vdata.getFormat().hasColumn('color'):
+            vdata.setFormat(GeomVertexFormat.getV3n3c4())
+        reader, writer = GeomVertexReader(vdata, 'vertex'), GeomVertexWriter(vdata, 'color')
+        while not reader.isAtEnd():
+            k = (reader.getData3()[axis] - lo_z) / span
+            t = min(1.0, max(0.0, (k - snow_line) / 0.08))     # short blend into the snow
+            writer.setData4(*[a + (b - a) * t for a, b in zip(low, high)], 1.0)
+    np.setMaterialOff(1)                                    # let the vertex colours show

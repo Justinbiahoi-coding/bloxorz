@@ -13,7 +13,7 @@ import random
 
 from ursina import Cone, Entity, Sky, Text, Vec3, camera, color, destroy, window
 
-from .world import floor_y, point_camera
+from .world import ASSETS, floor_y, paint_by_height, point_camera
 
 SHOTS = (3.2, 2.4, 2.6, 2.8)          # seconds per shot
 FADE = 0.35
@@ -88,12 +88,25 @@ class Intro:
                color=color.rgb(80, 82, 96))                                      # roof slab and parapet
         Entity(parent=land, model='cube', position=(cx + 1, self.top + 1.4, cz + 1), scale=(2.4, 2.4, 2.4),
                color=color.rgb(64, 66, 78))                                      # stair housing on the roof
-        peaks = ['rock_tallA', 'rock_tallC', 'rock_tallE', 'rock_tallG', 'rock_tallI']
+        templates = []                                                           # Hunyuan3D peaks, painted once
+        for name in ('mountain_a', 'mountain_b'):
+            if (ASSETS / 'models' / (name + '.glb')).exists():
+                t = prop(None, name, Vec3(0, -9999, 0), 0, 1)
+                paint_by_height(t.children[0])
+                t.enabled = False
+                templates.append(t)
         for _ in range(12):                                                      # mountains on the horizon
             ang = rng.uniform(0.5, 2.65)
             dist = rng.uniform(170, 260)
             x, z = cx + math.cos(ang) * dist, cz + math.sin(ang) * dist
-            self._night_tint(prop(land, rng.choice(peaks), Vec3(x, b - 2, z), rng.uniform(0, 360), rng.uniform(55, 95)))
+            if templates:
+                peak = Entity(parent=land, position=(x, b - 3, z), rotation_y=rng.uniform(0, 360),
+                              scale=rng.uniform(80, 130))
+                src = rng.choice(templates).children[0]
+                src.copyTo(peak).setPos(src.getPos())
+            else:
+                self._night_tint(prop(land, 'rock_tallA', Vec3(x, b - 2, z), rng.uniform(0, 360), rng.uniform(55, 95)))
+        self.templates = templates
         pines = ['tree_pineTallA_detailed', 'tree_pineTallB_detailed', 'tree_pineTallC_detailed',
                  'tree_pineTallD_detailed', 'tree_pineDefaultA', 'tree_pineDefaultB', 'tree_pineRoundA',
                  'tree_pineRoundC']
@@ -170,5 +183,6 @@ class Intro:
         self.skip.enabled = not ready and i < 3
 
     def destroy(self):
-        for e in (self.root, self.overlay, self.vignette, self.title, self.sub, self.button, self.frame, self.skip):
+        for e in (self.root, self.overlay, self.vignette, self.title, self.sub, self.button, self.frame, self.skip,
+                  *self.templates):
             destroy(e)
