@@ -48,7 +48,7 @@ MAT = {
     'groove': material('groove', (0.03, 0.03, 0.04)),
     'frame': material('frame', (0.10, 0.10, 0.12)),
     'glass': material('glass', (0.05, 0.07, 0.12), image='window_dark.png', rough=0.3),
-    'lit': material('lit', (0.95, 0.55, 0.2), image='window_lit.png', emit=0.6),
+    'lit': material('lit', (1.0, 0.84, 0.47), image='window_lit.png', emit=0.8),
     'door': material('door', (1.0, 0.78, 0.45), emit=1.2),
 }
 parts = {k: [] for k in MAT}

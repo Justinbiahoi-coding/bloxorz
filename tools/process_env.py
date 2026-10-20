@@ -53,6 +53,10 @@ for f in sorted(raw.glob('*.png')):
         w = img.convert('RGB').resize((256, 340), Image.LANCZOS)
         if 'dark' in f.name:
             w = Image.fromarray((np.asarray(w).astype(np.float32) * 0.45).astype(np.uint8))
+        else:                                                   # warm yellow lamp light, not red
+            a = np.asarray(w).astype(np.float32)
+            lum = (a @ np.array([0.3, 0.55, 0.15], np.float32))[..., None] / 255.0
+            w = Image.fromarray(np.clip(lum ** 0.45 * np.array([255, 214, 120], np.float32) * 1.45, 0, 255).astype(np.uint8))
         w.save(out / f.name)
     print('processed', f.name)
 
