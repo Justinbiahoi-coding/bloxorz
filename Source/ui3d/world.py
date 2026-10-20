@@ -62,3 +62,11 @@ def model_path(name):
 def texture_path(name):
     path = ASSETS / 'textures' / '{}.png'.format(name)
     return str(path) if path.exists() else None
+
+
+def point_camera(cam, target):
+    """Turn the camera towards ``target`` with yaw and pitch only (no roll), so it never ends up upside down
+    when it swings from looking down at a floor to looking up a facade."""
+    import math
+    d = target - cam.position
+    cam.rotation = (-math.degrees(math.atan2(d.y, math.hypot(d.x, d.z))), math.degrees(math.atan2(d.x, d.z)), 0)

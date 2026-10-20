@@ -12,11 +12,11 @@ from ui.hud import floor_name
 from .block import Block
 from .floor import Floor
 from .intro import Intro
-from .world import FLOOR_H, aim_sun
+from .world import FLOOR_H, aim_sun, point_camera
 
 KEYS = {'left arrow': 'LEFT', 'right arrow': 'RIGHT', 'up arrow': 'DOWN', 'down arrow': 'UP'}
 ROLL_S, FALL_S, DESCEND_S = 0.17, 0.45, 1.4
-SKY = [(250, 196, 150), (236, 140, 112), (120, 84, 130), (40, 48, 96), (16, 20, 40)]   # roof .. lobby
+SKY = [(22, 28, 58), (20, 25, 52), (18, 22, 46), (16, 20, 40), (14, 17, 34)]   # night, roof .. lobby
 
 
 def _ease(t):
@@ -61,7 +61,7 @@ class TowerGame(Entity):
     def _aim(self, floor):
         pos, target = self._camera_for(floor)
         camera.position = pos
-        camera.look_at(target)
+        point_camera(camera, target)
         aim_sun(self.sun, target)
         k = floor.index / max(1, floor.count - 1)
         i = min(len(SKY) - 2, int(k * (len(SKY) - 1)))
@@ -84,7 +84,7 @@ class TowerGame(Entity):
             window.fullscreen = not window.fullscreen
         if self.phase == 'intro':
             if not key.endswith(' up'):
-                self.intro.skip()
+                self.intro.skip_or_enter()
             return
         if self.phase != 'play':
             return
@@ -153,7 +153,7 @@ class TowerGame(Entity):
             pos, target = self._camera_for(self.next_floor)
             start_pos, start_target = self.cam_from
             camera.position = start_pos + (pos - start_pos) * k
-            camera.look_at(start_target + (target - start_target) * k)
+            point_camera(camera, start_target + (target - start_target) * k)
             if self.t >= 1:
                 self.floor.destroy()
                 self.floor, self.next_floor = self.next_floor, None
