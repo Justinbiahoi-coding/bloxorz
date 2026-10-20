@@ -36,7 +36,7 @@ class App:
 
         self.clock = pygame.time.Clock()
         self.surface = pygame.display.set_mode((W_SIZE, H_SIZE))
-        pygame.display.set_caption('Bloxorz Menu')
+        pygame.display.set_caption('Bloxorz Tower')
 
         self.level_numbers = sorted(
             int(path.stem) for path in (BASE_DIR / 'levels').glob('*.json'))

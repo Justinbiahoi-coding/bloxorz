@@ -1,6 +1,10 @@
+import math
+
 import pygame
 
-from . import rooftop
+from engine.problem import DIRS
+
+from . import blockfx, rooftop
 
 # Keyboard key -> engine action.
 _MOVE_KEYS = {
@@ -50,6 +54,7 @@ class Game:
         self.line_color = (255, 255, 255)
 
         self.sky = background or rooftop.sky((W_WIDTH_SIZE, W_HEIGHT_SIZE))
+        self.anim = None         # block roll in progress
         self.block_scale = 1.0   # <1 while the block drops through the goal hole
         self.font = pygame.font.Font(None, 50)
         self.ESC = False
@@ -66,12 +71,30 @@ class Game:
                 continue
 
             if not self.session.won and event.key in _MOVE_KEYS:
-                self.session.move(_MOVE_KEYS[event.key])
+                before, action = self.session.state, _MOVE_KEYS[event.key]
+                if self.session.move(action):
+                    self.start_roll(before, self.session.state, action)
             elif (not self.session.won and event.key == pygame.K_h
                   and self.session.hint is None):
                 self.session.request_hint()
             elif event.key == pygame.K_ESCAPE:
                 self.ESC = True
+
+    def _boxes(self, state):
+        cells = self.session.block_cells(state)
+        if state.split:
+            return [blockfx.make_box([c], True) for c in cells]
+        return [blockfx.make_box(cells, False)]
+
+    def start_roll(self, before, after, action):
+        """Animate the move unless it is not a plain roll (switching cube, splitting, merging)."""
+        self.anim = None
+        if action == 'SWITCH' or before.split != after.split:
+            return
+        idx = before.active if before.split else 0
+        start, end = self._boxes(before)[idx], self._boxes(after)[idx]
+        if blockfx.rolls_to(start, DIRS[action], end):
+            self.anim = blockfx.start_roll(start, DIRS[action], idx, pygame.time.get_ticks())
 
     def set_state(self, state, increment_moves=True):
         self.session.set_state(state, increment_moves)
@@ -110,18 +133,19 @@ class Game:
                     rooftop.tile(self.surface, self.cell_rect(x, y), kind, below)
 
     def draw_block(self):
-        rects = [self.cell_rect(x, y) for x, y in self.session.block_cells()]
-        if self.block_scale < 1:
-            if self.block_scale <= 0.02:
-                return
-            rects = [pygame.Rect(0, 0, int(r.w * self.block_scale), int(r.h * self.block_scale)) for r in rects]
-            for r, c in zip(rects, [self.cell_rect(x, y).center for x, y in self.session.block_cells()]):
-                r.center = c
-        if self.session.is_split:              # two cubes; the controlled one is highlighted
-            for i, rect in enumerate(rects):
-                rooftop.block(self.surface, rect, active=i == self.session.active)
-        else:
-            rooftop.block(self.surface, rects[0].unionall(rects[1:]))
+        boxes, roll, now = self._boxes(self.session.state), None, pygame.time.get_ticks()
+        if self.anim:
+            p = blockfx.progress(self.anim, now)
+            if p >= 1:
+                self.anim = None
+            else:
+                boxes[self.anim.idx] = self.anim.box
+                roll = (self.anim.d, (p * p * (3 - 2 * p)) * math.pi / 2)
+        order = sorted(range(len(boxes)), key=lambda i: boxes[i][1])       # northern pieces first
+        for i in order:
+            blockfx.draw_box(self.surface, boxes[i], (self.starting_x, self.starting_y), self.square_size,
+                             roll if self.anim and i == self.anim.idx else None, self.block_scale,
+                             ring=self.session.is_split and i == self.session.active)
 
     def draw_map_square(self, x, y, color):
         rect = pygame.Rect(
