@@ -20,7 +20,8 @@ The assignment explicitly allows recreating classic levels.
   indigo dusk sky with faint stars, navy night sky with soft city-light glow; each "minimalist painterly
   illustration, clean empty composition, game background". Seeds 11 to 14, size 1152x832.
 - Tiles, block, HUD and transitions are drawn in code (`Source/ui/rooftop.py`, `Source/ui/hud.py`).
-- Textures `Source/assets/textures/` (gravel, concrete, wood, fragile, steel) and the prop sprites
-  `Source/assets/props/vent.png`, `skylight.png` were generated with the same SDXL setup
-  (`tools/comfy_gen.py`, prompts and seeds 201-205 and 304-305 in that run) and post-processed with
-  `tools/process_assets.py` (made seamless / background removed). Props without a sprite are drawn in code.
+- Textures `Source/assets/textures/` (gravel, concrete, wood, fragile, steel) were generated with the same
+  SDXL setup (`tools/comfy_gen.py`, seeds 201-205) and made seamless with `tools/process_assets.py`.
+- Prop sprites `Source/assets/props/` were made image-to-image: the code-drawn props
+  (`ui/building.py: draw_code_prop`) are rendered as sketches by `tools/make_sketches.py`, then SDXL adds
+  detail at denoise 0.8 (seeds 401-408), and `tools/process_assets.py` removes the white background.

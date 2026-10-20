@@ -9,6 +9,8 @@ import urllib.request
 from pathlib import Path
 
 SERVER = 'http://127.0.0.1:8188'
+INIT = os.environ.get('INIT')                     # img2img: a file in ComfyUI/input
+DENOISE = float(os.environ.get('DENOISE', '1.0' if not INIT else '0.6'))
 NEGATIVE = os.environ.get('NEG', 'text, watermark, logo, blurry, lowres, deformed, people, characters, buildings, skyscraper, birds, airplane')
 
 
@@ -17,10 +19,12 @@ def graph(prompt, w, h, seed):
         '1': {'class_type': 'CheckpointLoaderSimple', 'inputs': {'ckpt_name': 'sd_xl_base_1.0.safetensors'}},
         '2': {'class_type': 'CLIPTextEncode', 'inputs': {'text': prompt, 'clip': ['1', 1]}},
         '3': {'class_type': 'CLIPTextEncode', 'inputs': {'text': NEGATIVE, 'clip': ['1', 1]}},
-        '4': {'class_type': 'EmptyLatentImage', 'inputs': {'width': w, 'height': h, 'batch_size': 1}},
+        '4': ({'class_type': 'VAEEncode', 'inputs': {'pixels': ['8', 0], 'vae': ['1', 2]}} if INIT else
+              {'class_type': 'EmptyLatentImage', 'inputs': {'width': w, 'height': h, 'batch_size': 1}}),
+        **({'8': {'class_type': 'LoadImage', 'inputs': {'image': INIT}}} if INIT else {}),
         '5': {'class_type': 'KSampler', 'inputs': {
             'model': ['1', 0], 'positive': ['2', 0], 'negative': ['3', 0], 'latent_image': ['4', 0],
-            'seed': seed, 'steps': 25, 'cfg': 7.0, 'sampler_name': 'euler', 'scheduler': 'normal', 'denoise': 1.0}},
+            'seed': seed, 'steps': 25, 'cfg': 7.0, 'sampler_name': 'euler', 'scheduler': 'normal', 'denoise': DENOISE}},
         '6': {'class_type': 'VAEDecode', 'inputs': {'samples': ['5', 0], 'vae': ['1', 2]}},
         '7': {'class_type': 'SaveImage', 'inputs': {'images': ['6', 0], 'filename_prefix': 'bloxorz'}},
     }

@@ -78,51 +78,67 @@ def _facade(surf, game, fx0, fx1, fy1, floor, count, rng):
     surf.blit(shade, (left, top))
 
 
-def _roof_props(surf, game, slots, rng, board):
+SIZES = {'tank': (1.6, 1.6), 'antenna': (0.6, 0.6), 'ac': (1.6, 1.1), 'solar': (2.2, 1.0), 'vent': (0.5, 0.5),
+         'skylight': (1.2, 1.2), 'desk': (1.4, 1.2), 'plant': (0.6, 0.6), 'sofa': (1.8, 0.7)}   # in tiles
+
+
+def draw_code_prop(surf, kind, r, shadow=True):
+    """The code-drawn version of a prop inside rect r (also the sketch that tools/make_sketches.py feeds to SDXL)."""
+    if shadow and kind not in ('vent', 'plant'):
+        _shadow(surf, r)
+    if kind == 'tank':
+        pygame.draw.ellipse(surf, (150, 150, 158), r)
+        for k in (0.8, 0.55):
+            pygame.draw.ellipse(surf, (120, 120, 130), r.inflate(-r.w * (1 - k), -r.h * (1 - k)), 2)
+        pygame.draw.ellipse(surf, (200, 200, 208), r.inflate(-r.w * 0.75, -r.h * 0.75))
+    elif kind == 'ac':
+        pygame.draw.rect(surf, (186, 186, 190), r, border_radius=4)
+        fan = r.h * 0.36
+        for cx in (r.x + r.w * 0.3, r.x + r.w * 0.7):
+            pygame.draw.circle(surf, (90, 92, 98), (int(cx), r.centery), int(fan))
+            pygame.draw.circle(surf, (140, 142, 148), (int(cx), r.centery), int(fan * 0.35))
+        pygame.draw.rect(surf, (130, 130, 136), r, 2, border_radius=4)
+    elif kind == 'solar':
+        pygame.draw.rect(surf, (36, 56, 104), r)
+        for i in range(1, 6):
+            pygame.draw.line(surf, (90, 120, 170), (r.x + r.w * i // 6, r.y), (r.x + r.w * i // 6, r.bottom))
+        pygame.draw.line(surf, (90, 120, 170), (r.x, r.centery), (r.right, r.centery))
+        pygame.draw.rect(surf, (170, 176, 186), r, 2)
+    elif kind == 'vent':
+        pygame.draw.circle(surf, (70, 70, 76), r.center, r.w // 2)
+        pygame.draw.circle(surf, (150, 150, 156), r.center, r.w // 2, 2)
+    elif kind == 'skylight':
+        pygame.draw.rect(surf, (120, 170, 210), r)
+        pygame.draw.line(surf, (220, 240, 255), (r.x + 3, r.bottom - 4), (r.right - 4, r.y + 3), 3)
+        pygame.draw.rect(surf, PARAPET, r, 3)
+    elif kind == 'desk':
+        pygame.draw.rect(surf, (196, 170, 132), r, border_radius=3)
+        mon = pygame.Rect(0, 0, r.w // 3, max(3, r.h // 6))
+        mon.midtop = (r.centerx, r.y + r.h // 6)
+        pygame.draw.rect(surf, (40, 44, 54), mon)
+        pygame.draw.circle(surf, (60, 64, 76), (r.centerx, r.bottom + r.h // 4), r.h // 4)   # chair
+    elif kind == 'plant':
+        pygame.draw.circle(surf, (120, 86, 60), r.center, r.w // 3)
+        for a in range(6):
+            ang = a * math.pi / 3
+            c = (int(r.centerx + math.cos(ang) * r.w * 0.25), int(r.centery + math.sin(ang) * r.w * 0.25))
+            pygame.draw.circle(surf, (70, 140, 80), c, r.w // 4)
+    elif kind == 'sofa':
+        pygame.draw.rect(surf, (150, 70, 70), r, border_radius=6)
+        pygame.draw.rect(surf, (120, 54, 54), r.inflate(-r.w // 6, -r.h // 3).move(0, r.h // 8), border_radius=4)
+
+
+def _place(surf, game, slots, rng, placed, kinds):
+    """Place props of the given kinds on free building cells; returns the antenna top, if one was placed."""
     beacon = None
-    placed = [board]
-    wanted = ['tank', 'antenna'] + ['ac'] * 3 + ['solar'] * 2 + ['vent'] * 5 + ['skylight']
-    for kind in wanted:
-        w, h = {'tank': (1.6, 1.6), 'antenna': (0.6, 0.6), 'ac': (1.6, 1.1), 'solar': (2.2, 1.0),
-                'vent': (0.5, 0.5), 'skylight': (1.2, 1.2)}[kind]
+    for kind in kinds:
+        w, h = SIZES[kind]
         spot = _find_spot(slots, placed, w, h, rng)
         if spot is None:
             continue
-        x, y = spot
-        placed.append((x, y, w, h))
-        r = _rect(game, x, y, w, h)
-        if kind != 'antenna' and _sprite(surf, kind, r):
-            continue
-        if kind == 'tank':
-            _shadow(surf, r)
-            pygame.draw.ellipse(surf, (150, 150, 158), r)
-            for k in (0.8, 0.55):
-                pygame.draw.ellipse(surf, (120, 120, 130), r.inflate(-r.w * (1 - k), -r.h * (1 - k)), 2)
-            pygame.draw.ellipse(surf, (200, 200, 208), r.inflate(-r.w * 0.75, -r.h * 0.75))
-        elif kind == 'ac':
-            _shadow(surf, r)
-            pygame.draw.rect(surf, (186, 186, 190), r, border_radius=4)
-            fan = r.h * 0.36
-            for cx in (r.x + r.w * 0.3, r.x + r.w * 0.7):
-                pygame.draw.circle(surf, (90, 92, 98), (int(cx), r.centery), int(fan))
-                pygame.draw.circle(surf, (140, 142, 148), (int(cx), r.centery), int(fan * 0.35))
-            pygame.draw.rect(surf, (130, 130, 136), r, 2, border_radius=4)
-        elif kind == 'solar':
-            _shadow(surf, r)
-            pygame.draw.rect(surf, (36, 56, 104), r)
-            for i in range(1, 6):
-                pygame.draw.line(surf, (90, 120, 170), (r.x + r.w * i // 6, r.y), (r.x + r.w * i // 6, r.bottom))
-            pygame.draw.line(surf, (90, 120, 170), (r.x, r.centery), (r.right, r.centery))
-            pygame.draw.rect(surf, (170, 176, 186), r, 2)
-        elif kind == 'vent':
-            pygame.draw.circle(surf, (70, 70, 76), r.center, r.w // 2)
-            pygame.draw.circle(surf, (150, 150, 156), r.center, r.w // 2, 2)
-        elif kind == 'skylight':
-            _shadow(surf, r)
-            pygame.draw.rect(surf, (120, 170, 210), r)
-            pygame.draw.line(surf, (220, 240, 255), (r.x + 3, r.bottom - 4), (r.right - 4, r.y + 3), 3)
-            pygame.draw.rect(surf, PARAPET, r, 3)
-        elif kind == 'antenna':
+        placed.append((*spot, w, h))
+        r = _rect(game, *spot, w, h)
+        if kind == 'antenna':
             base = r.center
             top = (base[0], base[1] - int(game.square_size * 2.4))
             pygame.draw.line(surf, (60, 60, 66), base, top, 3)
@@ -130,7 +146,14 @@ def _roof_props(surf, game, slots, rng, board):
                 y = int(base[1] + (top[1] - base[1]) * i)
                 pygame.draw.line(surf, (60, 60, 66), (base[0] - 8, y), (base[0] + 8, y), 2)
             beacon = top
+        elif not _sprite(surf, kind, r):
+            draw_code_prop(surf, kind, r)
     return beacon
+
+
+def _roof_props(surf, game, slots, rng, board):
+    kinds = ['tank', 'antenna'] + ['ac'] * 3 + ['solar'] * 2 + ['vent'] * 5 + ['skylight']
+    return _place(surf, game, slots, rng, [board], kinds)
 
 
 def _office_props(surf, game, slots, rng, fp, board):
@@ -141,33 +164,7 @@ def _office_props(surf, game, slots, rng, fp, board):
                 r = _rect(game, x, y, 0.5, 0.5)
                 _shadow(surf, r)
                 pygame.draw.rect(surf, (150, 144, 136), r)
-    placed = [board]
-    for kind in ['desk'] * 6 + ['plant'] * 5 + ['sofa'] * 2:
-        w, h = {'desk': (1.4, 0.8), 'plant': (0.6, 0.6), 'sofa': (1.8, 0.7)}[kind]
-        spot = _find_spot(slots, placed, w, h, rng)
-        if spot is None:
-            continue
-        placed.append((*spot, w, h))
-        r = _rect(game, *spot, w, h)
-        if _sprite(surf, kind, r):
-            continue
-        if kind == 'desk':
-            _shadow(surf, r)
-            pygame.draw.rect(surf, (196, 170, 132), r, border_radius=3)
-            mon = pygame.Rect(0, 0, r.w // 3, max(3, r.h // 6))
-            mon.midtop = (r.centerx, r.y + r.h // 6)
-            pygame.draw.rect(surf, (40, 44, 54), mon)
-            pygame.draw.circle(surf, (60, 64, 76), (r.centerx, r.bottom + r.h // 4), r.h // 4)   # chair
-        elif kind == 'plant':
-            pygame.draw.circle(surf, (120, 86, 60), r.center, r.w // 3)
-            for a in range(6):
-                ang = a * math.pi / 3
-                c = (int(r.centerx + math.cos(ang) * r.w * 0.25), int(r.centery + math.sin(ang) * r.w * 0.25))
-                pygame.draw.circle(surf, (70, 140, 80), c, r.w // 4)
-        elif kind == 'sofa':
-            _shadow(surf, r)
-            pygame.draw.rect(surf, (150, 70, 70), r, border_radius=6)
-            pygame.draw.rect(surf, (120, 54, 54), r.inflate(-r.w // 6, -r.h // 3).move(0, r.h // 8), border_radius=4)
+    _place(surf, game, slots, rng, [board], ['desk'] * 6 + ['plant'] * 5 + ['sofa'] * 2)
 
 
 def _find_spot(slots, placed, w, h, rng, tries=60):
