@@ -10,6 +10,8 @@ import random
 
 import pygame
 
+from . import sprites
+
 MX, MY = 3, 2                                # tiles of building left/right and above/below the playfield
 ROOF, ROOF_DOT, PARAPET = (98, 94, 90), (120, 116, 110), (176, 170, 160)
 WOOD, WOOD_LINE, GLASS = (104, 90, 76), (92, 79, 66), (170, 210, 235)
@@ -21,6 +23,18 @@ def _shadow(surf, rect, k=0.18):
     layer = pygame.Surface(rect.size, pygame.SRCALPHA)
     pygame.draw.rect(layer, (0, 0, 0, 70), layer.get_rect(), border_radius=max(2, rect.w // 8))
     surf.blit(layer, (rect.x + int(rect.w * k * 0.5) + 2, rect.y - int(rect.h * k * 0.3) + 2))
+
+
+def _sprite(surf, name, rect):
+    """Draw the generated sprite for a prop (with a soft shadow); False if there is none."""
+    img = sprites.prop(name, rect.w, rect.h)
+    if img is None:
+        return False
+    pos = img.get_rect(center=rect.center)
+    shadow = pygame.mask.from_surface(img).to_surface(setcolor=(0, 0, 0, 80), unsetcolor=(0, 0, 0, 0))
+    surf.blit(shadow, (pos.x + max(2, rect.w // 14), pos.y + max(2, rect.h // 14)))
+    surf.blit(img, pos)
+    return True
 
 
 def _footprint(game):
@@ -77,6 +91,8 @@ def _roof_props(surf, game, slots, rng, board):
         x, y = spot
         placed.append((x, y, w, h))
         r = _rect(game, x, y, w, h)
+        if kind != 'antenna' and _sprite(surf, kind, r):
+            continue
         if kind == 'tank':
             _shadow(surf, r)
             pygame.draw.ellipse(surf, (150, 150, 158), r)
@@ -133,6 +149,8 @@ def _office_props(surf, game, slots, rng, fp, board):
             continue
         placed.append((*spot, w, h))
         r = _rect(game, *spot, w, h)
+        if _sprite(surf, kind, r):
+            continue
         if kind == 'desk':
             _shadow(surf, r)
             pygame.draw.rect(surf, (196, 170, 132), r, border_radius=3)
@@ -177,14 +195,20 @@ def bake(background, game, floor, count):
 
     _facade(background, game, fx0, fx1, fy1, floor, count, rng)
     slab = _rect(game, fx0, fy0, fx1 - fx0 + 1, fy1 - fy0 + 1)
-    pygame.draw.rect(background, ROOF if roof else WOOD, slab)
-    if roof:
-        for _ in range(slab.w * slab.h // 90):                   # gravel
-            pygame.draw.circle(background, ROOF_DOT if rng.random() < 0.6 else (84, 80, 76),
-                               (rng.randrange(slab.x, slab.right), rng.randrange(slab.y, slab.bottom)), 1)
-    else:
-        for y in range(slab.y, slab.bottom, max(4, game.square_size // 2)):   # floor planks
-            pygame.draw.line(background, WOOD_LINE, (slab.x, y), (slab.right, y), 1)
+    textured = sprites.fill(background, slab, 'gravel' if roof else 'wood', int(game.square_size))
+    if textured:                                                 # calm the texture so the playfield stays the focus
+        veil = pygame.Surface(slab.size, pygame.SRCALPHA)
+        veil.fill((*(ROOF if roof else WOOD), 130 if roof else 60))
+        background.blit(veil, slab.topleft)
+    if not textured:                                             # code-drawn fallback
+        pygame.draw.rect(background, ROOF if roof else WOOD, slab)
+        if roof:
+            for _ in range(slab.w * slab.h // 90):               # gravel
+                pygame.draw.circle(background, ROOF_DOT if rng.random() < 0.6 else (84, 80, 76),
+                                   (rng.randrange(slab.x, slab.right), rng.randrange(slab.y, slab.bottom)), 1)
+        else:
+            for y in range(slab.y, slab.bottom, max(4, game.square_size // 2)):   # floor planks
+                pygame.draw.line(background, WOOD_LINE, (slab.x, y), (slab.right, y), 1)
 
     sq = game.square_size
     for y in range(by0, by1 + 1):                                # shafts where the playfield has no tile

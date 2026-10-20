@@ -31,7 +31,7 @@ FRAGILE, BRIDGE = (226, 170, 110), (150, 108, 64)
 SOFT, HEAVY, SPLIT = (96, 120, 150), (70, 70, 78), (120, 70, 150)
 
 
-def tile(surf, rect, kind, edge_below):
+def tile(surf, rect, kind, edge_below, texture=None):
     """One tile. ``edge_below``: the cell under it is empty, so show the slab's side face."""
     if kind in ('void', 'bridge_closed'):
         if kind == 'bridge_closed':
@@ -40,8 +40,14 @@ def tile(surf, rect, kind, edge_below):
     depth = max(4, rect.height // 4)
     if edge_below:
         pygame.draw.rect(surf, CONCRETE_SIDE, (rect.x, rect.bottom, rect.width, depth))
-    pygame.draw.rect(surf, {'fragile': FRAGILE, 'bridge_open': BRIDGE}.get(kind, CONCRETE), rect)
+    if texture is not None and texture.get_size() == rect.size:
+        surf.blit(texture, rect.topleft)
+    else:
+        pygame.draw.rect(surf, {'fragile': FRAGILE, 'bridge_open': BRIDGE}.get(kind, CONCRETE), rect)
     pygame.draw.rect(surf, CONCRETE_LINE, rect, 1)
+    hi = pygame.Surface((rect.w, max(2, rect.h // 10)), pygame.SRCALPHA)   # bevel: lit top edge
+    hi.fill((255, 255, 255, 40))
+    surf.blit(hi, rect.topleft)
     cx, cy, r = rect.centerx, rect.centery, rect.width // 3
     if kind == 'goal':
         pygame.draw.circle(surf, PIT, rect.center, int(rect.width * 0.34))

@@ -4,10 +4,12 @@ import pygame
 
 from engine.problem import DIRS
 
-from . import blockfx, building, rooftop
+from . import blockfx, building, rooftop, sprites
 
 
 MAX_TILE = 112
+_TILE_TEXTURE = {'floor': 'concrete', 'goal': 'concrete', 'soft': 'concrete', 'heavy': 'concrete',
+                 'split': 'concrete', 'fragile': 'fragile', 'bridge_open': 'steel'}
 
 
 # Keyboard key -> engine action.
@@ -134,7 +136,9 @@ class Game:
                 kind = self.session.tile_at(x, y)
                 if kind != 'void':
                     below = y + 1 >= self.level.size or self.session.tile_at(x, y + 1) in ('void', 'bridge_closed')
-                    rooftop.tile(self.surface, self.cell_rect(x, y), kind, below)
+                    tex = _TILE_TEXTURE.get(kind)
+                    piece = sprites.cell_piece(tex, int(self.square_size), x, y) if tex else None
+                    rooftop.tile(self.surface, self.cell_rect(x, y), kind, below, piece)
 
     def draw_block(self):
         boxes, roll, now = self._boxes(self.session.state), None, pygame.time.get_ticks()
