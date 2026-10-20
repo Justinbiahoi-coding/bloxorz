@@ -1,0 +1,76 @@
+"""Shared look for the tower mode: palette, Fredoka font, HUD panels and the building progress meter."""
+from pathlib import Path
+
+import pygame
+
+FONT_PATH = Path(__file__).resolve().parent.parent / 'assets' / 'fonts' / 'Fredoka.ttf'
+INK, PAPER, GOLD, CORAL = (27, 37, 64), (250, 244, 232), (255, 200, 87), (255, 138, 91)
+_fonts = {}
+
+
+def font(size):
+    if size not in _fonts:
+        try:
+            _fonts[size] = pygame.font.Font(str(FONT_PATH), size)
+            _fonts[size].set_bold(True)   # the variable font loads at its lightest weight
+        except (FileNotFoundError, pygame.error):
+            _fonts[size] = pygame.font.Font(None, int(size * 1.2))
+    return _fonts[size]
+
+
+def text(surf, string, size, color, **anchor):
+    img = font(size).render(string, True, color)
+    surf.blit(img, img.get_rect(**anchor))
+    return img.get_rect(**anchor)
+
+
+def panel(surf, rect, alpha=185):
+    layer = pygame.Surface(rect.size, pygame.SRCALPHA)
+    pygame.draw.rect(layer, (*INK, alpha), layer.get_rect(), border_radius=16)
+    pygame.draw.rect(layer, (*PAPER, 40), layer.get_rect(), 1, border_radius=16)
+    surf.blit(layer, rect.topleft)
+
+
+def draw_hud(surf, floor, count, moves):
+    """Top-left card: current floor and the moves taken on it."""
+    box = pygame.Rect(20, 20, 190, 82)
+    panel(surf, box)
+    text(surf, 'FLOOR', 15, GOLD, topleft=(box.x + 18, box.y + 10))
+    text(surf, '{} / {}'.format(floor + 1, count), 34, PAPER, topleft=(box.x + 18, box.y + 28))
+    text(surf, str(moves), 34, PAPER, topright=(box.right - 18, box.y + 28))
+    text(surf, 'MOVES', 15, GOLD, topright=(box.right - 18, box.y + 10))
+
+
+def draw_tower(surf, floor, count):
+    """Right edge: the building as a stack of floors; the one you are on glows."""
+    w, h = surf.get_size()
+    top, bottom, x = 110, h - 70, w - 44
+    slot = (bottom - top) / count
+    for i in range(count):
+        rect = pygame.Rect(x, int(top + i * slot) + 2, 24, max(4, int(slot) - 5))
+        if i == floor:
+            glow = pygame.Surface((rect.w + 16, rect.h + 16), pygame.SRCALPHA)
+            pygame.draw.rect(glow, (*CORAL, 90), glow.get_rect(), border_radius=10)
+            surf.blit(glow, (rect.x - 8, rect.y - 8))
+            color = CORAL
+        else:
+            color = GOLD if i < floor else (*PAPER, 110)
+        layer = pygame.Surface(rect.size, pygame.SRCALPHA)
+        pygame.draw.rect(layer, color, layer.get_rect(), border_radius=5)
+        surf.blit(layer, rect.topleft)
+    text(surf, 'TOP', 13, PAPER, midbottom=(x + 12, top - 4))
+    text(surf, 'STREET', 13, PAPER, midtop=(x + 12, bottom + 4))
+
+
+def draw_finish(surf, total_moves, count):
+    w, h = surf.get_size()
+    shade = pygame.Surface((w, h), pygame.SRCALPHA)
+    shade.fill((*INK, 150))
+    surf.blit(shade, (0, 0))
+    box = pygame.Rect(0, 0, 440, 230)
+    box.center = (w // 2, h // 2)
+    panel(surf, box, 235)
+    text(surf, 'STREET LEVEL', 16, GOLD, midtop=(box.centerx, box.y + 26))
+    text(surf, 'You made it down', 40, PAPER, midtop=(box.centerx, box.y + 52))
+    text(surf, '{} floors  -  {} moves'.format(count, total_moves), 26, PAPER, midtop=(box.centerx, box.y + 112))
+    text(surf, 'Press ESC for the menu', 20, CORAL, midtop=(box.centerx, box.y + 168))

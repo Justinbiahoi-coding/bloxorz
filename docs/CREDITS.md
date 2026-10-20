@@ -12,3 +12,11 @@ Only the stage layouts were used; no code from that project is included.
 The assignment explicitly allows recreating classic levels.
 
 `Source/levels/1.json` to `20.json` were designed by the project authors.
+
+## Visual assets
+- Font: [Fredoka](https://fonts.google.com/specimen/Fredoka), SIL Open Font License 1.1 (`Source/assets/fonts/OFL-Fredoka.txt`).
+- Tower backgrounds `Source/assets/backgrounds/sky_0..3.png` were generated with Stable Diffusion XL base 1.0
+  (CreativeML OpenRAIL++-M) through ComfyUI. Prompts, in order: golden-hour sky, coral-to-violet sunset sky,
+  indigo dusk sky with faint stars, navy night sky with soft city-light glow; each "minimalist painterly
+  illustration, clean empty composition, game background". Seeds 11 to 14, size 1152x832.
+- Tiles, block, HUD and transitions are drawn in code (`Source/ui/rooftop.py`, `Source/ui/hud.py`).

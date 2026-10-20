@@ -10,6 +10,7 @@ from engine import ALGORITHM_NAMES, GameSession
 
 from .algorithm_views import AlgorithmMenu, AlgorithmShow
 from .game import Game
+from .tower_view import TowerGame
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -21,6 +22,7 @@ W_SIZE = 880  # Width of window size
 
 STATE_MENU = 'MENU'
 STATE_INGAME = 'INGAME'
+STATE_TOWER = 'TOWER'
 STATE_VIEWING_STATS = 'VIEWING_STATS_ALGORITHM'
 STATE_VIEWING_ALGORITHM = 'VIEWING_ALGORITHM'
 
@@ -112,6 +114,7 @@ class App:
         self.algorithms_select_menu.add.button(
             'Return to Menu', pygame_menu.events.BACK)
 
+        self.menu.add.button('Tower', self._start_tower)
         self.menu.add.button('Free Play', self.free_play_menu)
         self.menu.add.button('Algorithms', self.algorithms_select_menu)
         self.menu.add.button('Exit', pygame_menu.events.EXIT)
@@ -138,6 +141,11 @@ class App:
         self.state = STATE_INGAME
         self._play_music()
 
+    def _start_tower(self):
+        self.menu.disable()
+        self.tower = TowerGame(self.surface, H_SIZE, W_SIZE)
+        self.state = STATE_TOWER
+
     def _start_algorithms(self):
         self.menu.disable()
         self.algorithm_menu = AlgorithmMenu(
@@ -162,6 +170,10 @@ class App:
         if self.state == STATE_INGAME:
             self.game.process(events)
             if self.game.should_quit():
+                self._return_to_menu()
+        elif self.state == STATE_TOWER:
+            self.tower.process(events)
+            if self.tower.should_quit():
                 self._return_to_menu()
         elif self.state == STATE_VIEWING_STATS:
             self.algorithm_menu.process(events)

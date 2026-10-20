@@ -16,7 +16,7 @@ class Game:
     """Pygame view/controller for an engine GameSession."""
 
     def __init__(self, surface, W_HEIGHT_SIZE, W_WIDTH_SIZE, session,
-                 show_hint=False):
+                 show_hint=False, background=None):
         self.surface = surface
         self.W_HEIGHT_SIZE = W_HEIGHT_SIZE
         self.W_WIDTH_SIZE = W_WIDTH_SIZE
@@ -49,7 +49,8 @@ class Game:
                              'goal': self.goal_color}
         self.line_color = (255, 255, 255)
 
-        self.sky = rooftop.sky((W_WIDTH_SIZE, W_HEIGHT_SIZE))
+        self.sky = background or rooftop.sky((W_WIDTH_SIZE, W_HEIGHT_SIZE))
+        self.block_scale = 1.0   # <1 while the block drops through the goal hole
         self.font = pygame.font.Font(None, 50)
         self.ESC = False
         self.show_hint = show_hint
@@ -110,6 +111,12 @@ class Game:
 
     def draw_block(self):
         rects = [self.cell_rect(x, y) for x, y in self.session.block_cells()]
+        if self.block_scale < 1:
+            if self.block_scale <= 0.02:
+                return
+            rects = [pygame.Rect(0, 0, int(r.w * self.block_scale), int(r.h * self.block_scale)) for r in rects]
+            for r, c in zip(rects, [self.cell_rect(x, y).center for x, y in self.session.block_cells()]):
+                r.center = c
         if self.session.is_split:              # two cubes; the controlled one is highlighted
             for i, rect in enumerate(rects):
                 rooftop.block(self.surface, rect, active=i == self.session.active)
