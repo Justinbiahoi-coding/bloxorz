@@ -138,14 +138,17 @@ class Game:
                 if kind != 'void':
                     below = y + 1 >= self.level.size or self.session.tile_at(x, y + 1) in ('void', 'bridge_closed')
                     tex = _TILE_TEXTURE.get(kind)
-                    if self.scene:                       # path is part of the floor: flush, same material indoors
+                    carpet = False
+                    if self.scene:                       # path is part of the floor: flush with it
                         below = False
-                        if tex == 'concrete' and self.scene[0] > 0:
-                            tex = 'wood'
+                        carpet = tex == 'concrete' and self.scene[0] > 0   # indoors: a carpet runner
                     piece = sprites.cell_piece(tex, int(self.square_size), x, y) if tex else None
+                    if carpet and piece is not None:
+                        piece = piece.copy()
+                        piece.fill((104, 118, 150), special_flags=pygame.BLEND_RGB_MULT)
                     rect = self.cell_rect(x, y)
                     rooftop.tile(self.surface, rect, kind, below, piece)
-                    if self.scene and kind != 'bridge_closed':
+                    if self.scene and kind != 'bridge_closed' and not carpet:
                         self.surface.blit(self._path_veil(rect.size), rect.topleft)
 
     def _path_veil(self, size):

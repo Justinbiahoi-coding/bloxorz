@@ -1,9 +1,8 @@
 """The building around a floor, drawn once into the floor's background.
 
 Top floor: the open roof (gravel, parapet, rooftop equipment, antenna) above the tower's facade.
-Lower floors: closed rooms in the style of top-down RPG interiors: dark outside, a tall back wall
-with things hung on it, wall caps on the other sides, and furniture laid out the way offices are:
-storage and desks against the walls, desk pairs and meeting tables in the middle, the path kept clear.
+Lower floors: rooms seen through an opening in the ceiling of the floor above (ceiling tiles,
+panel lights, vents), with a few furniture groups laid out like a normal office and the path kept clear.
 """
 import math
 import random
@@ -243,102 +242,105 @@ def _rug(surf, rect):
 
 
 def _furnish_office(surf, game, rng, fp):
-    """Office layout: aisle (the path) kept clear; along the walls storage and desks facing the wall,
-    in the middle back-to-back desk pairs and meeting tables on rugs; loose cells by the path get plants,
-    boxes or cabinets."""
+    """A normal office, not a warehouse: a few groups with breathing room between them.
+    Gaps inside the playfield get a group (desk pair, meeting table on a rug, plant) so it is clear why the
+    block cannot go there; along the walls only a handful of pieces, spaced out; the aisle stays clear."""
     fx0, fy0, fx1, fy1 = fp
-    top = fy0 + 1                                                 # row fy0 is the back wall
     walk = set(game.level.kinds)
-    free = {(x, y) for x in range(fx0, fx1 + 1) for y in range(top, fy1 + 1)} - walk
-    near = {(x, y) for x, y in free if any((x + dx, y + dy) in walk for dx in (-1, 0, 1) for dy in (-1, 0, 1))}
+    xs, ys = [x for x, _ in walk], [y for _, y in walk]
+    bx0, by0, bx1, by1 = min(xs), min(ys), max(xs), max(ys)
+    free = {(x, y) for x in range(fx0, fx1 + 1) for y in range(fy0, fy1 + 1)} - walk
+    used = set()
+
+    def room_for(cells):                       # cells free, and an empty cell between this and other furniture
+        return cells <= free and not any((x + dx, y + dy) in used for x, y in cells
+                                         for dx in (-1, 0, 1) for dy in (-1, 0, 1))
 
     def take(kind, x, y, w=1, h=1, angle=0):
-        free.difference_update((x + i, y + j) for i in range(w) for j in range(h))
+        cells = {(x + i, y + j) for i in range(w) for j in range(h)}
+        used.update(cells)
+        free.difference_update(cells)
         _put(surf, kind, _rect(game, x, y, w, h), angle)
 
-    x = fx0                                                       # back wall: shelves and storage
-    while x <= fx1:
-        if (x, top) in free:
-            if (x + 1, top) in free and rng.random() < 0.5:
-                take('shelf', x, top, 2, 1)
-                x += 2
-                continue
-            take(rng.choice(['cabinet', 'printer', 'cooler', 'desk', 'plant']), x, top)
-        x += 1
-    for x in range(fx0, fx1 + 1):                                 # front wall: desks facing it
-        if (x, fy1) in free:
-            take('desk' if rng.random() < 0.7 else 'plant', x, fy1, angle=180)
-    for y in range(top + 1, fy1):                                 # side walls: desks facing them
-        for x, angle in ((fx0, 90), (fx1, 270)):
-            if (x, y) in free:
-                take('desk' if rng.random() < 0.6 else rng.choice(['cabinet', 'plant']), x, y, angle=angle)
-
+    inside = sorted((c for c in free if bx0 <= c[0] <= bx1 and by0 <= c[1] <= by1), key=lambda c: rng.random())
     meetings = 0
-    for x, y in sorted(free, key=lambda c: rng.random()):         # middle: meeting tables on rugs, desk pairs
-        if (x, y) not in free:
-            continue
+    for x, y in inside:                        # gaps in the playfield
         block = {(x + i, y + j) for i in range(2) for j in range(2)}
-        if block <= free and meetings < 2 and rng.random() < 0.5:   # one or two meeting corners per floor
+        pair = {(x, y), (x, y + 1)}
+        if meetings < 1 and room_for(block):
             meetings += 1
             _rug(surf, _rect(game, x - 0.1, y - 0.1, 2.2, 2.2))
             take('meeting', x, y, 2, 2)
-        elif (x, y + 1) in free and rng.random() < 0.6:
-            take('desk', x, y, angle=180)                         # back to back, chairs outwards
+        elif pair <= free and rng.random() < 0.5:
+            take('desk', x, y, angle=180)       # back to back
             take('desk', x, y + 1)
-        elif (x, y) in near or rng.random() < 0.2:
-            take(rng.choice(['plant', 'boxes', 'cabinet', 'cooler', 'plant']), x, y)
+        elif (x, y) in free and rng.random() < 0.45:
+            take(rng.choice(['plant', 'plant', 'cabinet', 'cooler']), x, y)
+
+    for x in range(fx0 + 1, fx1, 3):           # along the back wall: storage, spaced out
+        if room_for({(x, fy0), (x + 1, fy0)}) and rng.random() < 0.6:
+            take('shelf', x, fy0, 2, 1)
+        elif room_for({(x, fy0)}) and rng.random() < 0.5:
+            take(rng.choice(['printer', 'cooler', 'cabinet']), x, fy0)
+    for x in range(fx0 + 1, fx1, 2):           # front wall: a few desks facing the window
+        if room_for({(x, fy1)}) and rng.random() < 0.45:
+            take('desk', x, fy1, angle=180)
+    for y in range(fy0 + 2, fy1 - 1, 2):       # side walls
+        for x, angle in ((fx0, 90), (fx1, 270)):
+            if room_for({(x, y)}) and rng.random() < 0.4:
+                take(rng.choice(['desk', 'desk', 'cabinet']), x, y, angle=angle)
+    for corner in ((fx0, fy0), (fx1, fy0), (fx0, fy1), (fx1, fy1)):   # plants in the corners
+        if room_for({corner}):
+            take('plant', *corner)
 
 
-def _office_shell(surf, game, fp, rng):
-    """Walls: a tall back wall with things on it, thin wall caps elsewhere, soft shade along the walls."""
+def _ceiling(surf, game, fp, rng):
+    """The floor above, seen from below around the opening: ceiling tiles, panel lights, vents,
+    sprinklers; then the cut slab edge, the shadow it throws into the room and the window line."""
     fx0, fy0, fx1, fy1 = fp
     sq = game.square_size
+    w, h = surf.get_size()
     room = _rect(game, fx0, fy0, fx1 - fx0 + 1, fy1 - fy0 + 1)
-    cap = max(4, int(sq * 0.22))
-    face = _rect(game, fx0, fy0, fx1 - fx0 + 1, 1)
-    pygame.draw.rect(surf, (222, 210, 186), face)                                  # painted wall
-    pygame.draw.rect(surf, (238, 228, 206), (face.x, face.y, face.w, face.h // 3))  # lighter upper band
-    pygame.draw.rect(surf, (110, 82, 58), (face.x, face.bottom - face.h // 7, face.w, face.h // 7))   # skirting
-    x = fx0 + 1
-    while x < fx1:                                                # things hung on the back wall
-        kind = rng.choice(['board', 'clock', 'frame', 'frame', 'notice', None])
-        r = _rect(game, x, fy0)
-        if kind == 'board' and x + 1 < fx1:
-            wb = _rect(game, x + 0.15, fy0 + 0.15, 1.7, 0.55)
-            pygame.draw.rect(surf, (248, 248, 250), wb)
-            pygame.draw.rect(surf, (150, 150, 160), wb, 2)
-            for i in range(3):
-                y = wb.y + wb.h * (i + 1) // 4
-                pygame.draw.line(surf, ((60, 90, 170), (190, 60, 60), (60, 140, 90))[i], (wb.x + 6, y), (wb.x + wb.w // (2 + i), y), 2)
-            x += 2
-            continue
-        if kind == 'clock':
-            pygame.draw.circle(surf, (250, 250, 250), (r.centerx, r.y + r.h * 2 // 5), r.w // 5)
-            pygame.draw.circle(surf, (60, 60, 66), (r.centerx, r.y + r.h * 2 // 5), r.w // 5, 2)
-            c = (r.centerx, r.y + r.h * 2 // 5)
-            pygame.draw.line(surf, (40, 40, 44), c, (c[0], c[1] - r.w // 7), 2)
-            pygame.draw.line(surf, (40, 40, 44), c, (c[0] + r.w // 9, c[1]), 2)
-        elif kind == 'frame':
-            fr = _rect(game, x + 0.22, fy0 + 0.15, 0.56, 0.45)
-            pygame.draw.rect(surf, (90, 66, 44), fr)
-            pygame.draw.rect(surf, rng.choice([(110, 160, 190), (200, 150, 90), (120, 170, 110)]), fr.inflate(-6, -6))
-        elif kind == 'notice':
-            nb = _rect(game, x + 0.15, fy0 + 0.15, 0.7, 0.5)
-            pygame.draw.rect(surf, (176, 132, 88), nb)
-            for _ in range(4):
-                pygame.draw.rect(surf, rng.choice([(250, 240, 160), (250, 250, 250), (180, 220, 250)]),
-                                 (rng.randrange(nb.x + 3, nb.right - 10), rng.randrange(nb.y + 3, nb.bottom - 10), 8, 8))
-        x += 1
-    shade = pygame.Surface((room.w, sq // 2), pygame.SRCALPHA)    # contact shadow under the back wall
-    for i in range(shade.get_height()):
-        shade.fill((0, 0, 0, max(0, 70 - i * 140 // sq)), (0, i, room.w, 1))
-    surf.blit(shade, (room.x, face.bottom))
-    wall = (58, 54, 62)
-    pygame.draw.rect(surf, wall, (room.x - cap, room.y - cap, room.w + 2 * cap, cap))      # top cap
-    pygame.draw.rect(surf, wall, (room.x - cap, room.y - cap, cap, room.h + 2 * cap))      # left
-    pygame.draw.rect(surf, wall, (room.right, room.y - cap, cap, room.h + 2 * cap))        # right
-    pygame.draw.rect(surf, wall, (room.x - cap, room.bottom, room.w + 2 * cap, cap))       # bottom
-    pygame.draw.rect(surf, (96, 92, 102), room.inflate(2 * cap, 2 * cap), 2)
+    ceiling = pygame.Surface((w, h))
+    ceiling.fill((222, 220, 214))
+    panel = max(8, sq // 2)
+    ox, oy = room.x % panel, room.y % panel                      # grid lines up with the room
+    for x in range(ox - panel, w, panel):
+        pygame.draw.line(ceiling, (200, 196, 190), (x, 0), (x, h), 1)
+    for y in range(oy - panel, h, panel):
+        pygame.draw.line(ceiling, (200, 196, 190), (0, y), (w, y), 1)
+    for gy, y in enumerate(range(oy - panel, h, panel)):
+        for gx, x in enumerate(range(ox - panel, w, panel)):
+            cell = pygame.Rect(x + 1, y + 1, panel - 1, panel - 1)
+            if gx % 4 == 1 and gy % 4 == 1:                      # LED panel light with a soft halo
+                halo = pygame.Surface((panel * 3, panel * 3), pygame.SRCALPHA)
+                pygame.draw.ellipse(halo, (255, 250, 225, 40), halo.get_rect())
+                ceiling.blit(halo, (x - panel, y - panel))
+                pygame.draw.rect(ceiling, (252, 252, 244), cell.inflate(-2, -2))
+                pygame.draw.rect(ceiling, (186, 184, 178), cell.inflate(-2, -2), 1)
+            elif gx % 6 == 4 and gy % 4 == 3:                    # air vent
+                v = cell.inflate(-panel // 4, -panel // 4)
+                pygame.draw.rect(ceiling, (180, 180, 184), v)
+                for i in range(v.y + 2, v.bottom - 1, 3):
+                    pygame.draw.line(ceiling, (140, 140, 146), (v.x + 2, i), (v.right - 3, i), 1)
+            elif rng.random() < 0.015:                           # sprinkler head
+                pygame.draw.circle(ceiling, (170, 60, 50), cell.center, max(2, panel // 10))
+    for part in (pygame.Rect(0, 0, w, room.y), pygame.Rect(0, room.bottom, w, h - room.bottom),
+                 pygame.Rect(0, room.y, room.x, room.h), pygame.Rect(room.right, room.y, w - room.right, room.h)):
+        surf.blit(ceiling, part.topleft, part)                   # ceiling everywhere except over the room
+    lip = max(5, int(sq * 0.28))                                 # cut edge of the ceiling slab
+    pygame.draw.rect(surf, (168, 164, 158), room.inflate(2 * lip, 2 * lip), lip)
+    pygame.draw.rect(surf, (120, 116, 112), room.inflate(2, 2), 2)
+    depth = max(6, int(sq * 0.45))                               # the overhang darkens the room's edges
+    for i in range(depth):
+        a = int(90 * (1 - i / depth) ** 2)
+        shade = pygame.Surface((room.w - 2 * i, room.h - 2 * i), pygame.SRCALPHA)
+        pygame.draw.rect(shade, (0, 0, 0, a), shade.get_rect(), 1)
+        surf.blit(shade, (room.x + i, room.y + i))
+    glass = room.inflate(-4, -4)                                 # window line along the outer walls
+    pygame.draw.rect(surf, (170, 210, 235), glass, 2)
+    for x in range(room.x, room.right, sq):
+        pygame.draw.line(surf, (140, 180, 205), (x, room.y), (x, room.y + 5), 2)
 
 
 def _put(surf, kind, rect, angle=0):
@@ -358,7 +360,7 @@ def bake(background, game, floor, count):
     if roof:
         _facade(background, game, fx0, fx1, fy1, floor, count, rng)
     else:
-        background.fill((8, 8, 12))                               # a closed room: nothing outside
+        pass                                                      # indoors: the ceiling is drawn after the room
     slab = _rect(game, fx0, fy0, fx1 - fx0 + 1, fy1 - fy0 + 1)
     textured = sprites.fill(background, slab, 'gravel' if roof else 'wood', int(game.square_size))
     if textured:                                                 # calm the texture so the playfield stays the focus
@@ -381,7 +383,7 @@ def bake(background, game, floor, count):
     else:
         beacon = None
         _furnish_office(background, game, rng, (fx0, fy0, fx1, fy1))
-        _office_shell(background, game, (fx0, fy0, fx1, fy1), rng)
+        _ceiling(background, game, (fx0, fy0, fx1, fy1), rng)
 
     if roof:                                                     # parapet with its front face
         edge = max(4, int(sq * 0.2))
