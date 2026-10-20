@@ -36,5 +36,7 @@ The assignment explicitly allows recreating classic levels.
 - Tower `Source/assets/models/tower.glb`: modelled by script in Blender (`tools/blender_tower.py`).
 - Intro scenery images (SDXL via ComfyUI, seeds 701-708): painted mountain panorama `backdrop_a.png`, cloud sprite,
   concrete wall, grass, lit / dark window textures in `Source/assets/textures/`, processed by `tools/process_env.py`.
+- Player character `Source/assets/models/player_can.glb`: trash can modelled by script in Blender
+  (`tools/blender_trashcan.py`); face sticker and galvanised metal texture generated with SDXL (seeds 801, 803).
 - Rooftop equipment, path tiles, stairwell, block and the intro city are built from primitives in code;
   `assets/textures/facade.png` is drawn by code (pygame).
