@@ -33,5 +33,6 @@ The assignment explicitly allows recreating classic levels.
   (CC0), re-coloured for night in code; licence in `Source/assets/models/LICENSE-kenney-nature.txt`.
 - Mountains `Source/assets/models/mountain_*.glb`: generated image-to-3D with Hunyuan3D 2.1 in ComfyUI
   (`tools/comfy_img2mesh.py`) from SDXL images (seeds 601-602), snow painted by height in code.
+- Tower `Source/assets/models/tower.glb`: modelled by script in Blender (`tools/blender_tower.py`).
 - Rooftop equipment, path tiles, stairwell, block and the intro city are built from primitives in code;
   `assets/textures/facade.png` is drawn by code (pygame).

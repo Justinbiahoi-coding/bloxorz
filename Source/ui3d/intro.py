@@ -30,7 +30,7 @@ def _lerp(a, b, k):
 
 class Intro:
     def __init__(self, roof, count, end_pos, end_target):
-        fx0, fy0, fx1, fy1 = roof.fp
+        fx0, fy0, fx1, fy1 = self.fp = roof.fp
         self.cx, self.cz = (fx0 + fx1) / 2, -(fy0 + fy1) / 2
         self.w, self.d = fx1 - fx0 + 2.2, fy1 - fy0 + 2.2
         self.top, self.bottom = roof.base - 0.3, floor_y(count) - 3
@@ -82,12 +82,17 @@ class Intro:
         Entity(parent=land, model='plane', position=(cx + 5, b + 0.02, cz - 70), scale=(3.4, 1, 130),
                rotation_y=-7, color=color.rgb(96, 74, 56))                       # dirt path to the tower
         h = self.top - b
-        Entity(parent=land, model='cube', position=(cx, b + h / 2, cz), scale=(self.w, h, self.d),
-               texture='textures/facade', texture_scale=(self.w / 2.5, h / 2.5))   # the tower
-        Entity(parent=land, model='cube', position=(cx, self.top + 0.25, cz), scale=(self.w + 0.6, 0.5, self.d + 0.6),
-               color=color.rgb(80, 82, 96))                                      # roof slab and parapet
-        Entity(parent=land, model='cube', position=(cx + 1, self.top + 1.4, cz + 1), scale=(2.4, 2.4, 2.4),
-               color=color.rgb(64, 66, 78))                                      # stair housing on the roof
+        if (ASSETS / 'models' / 'tower.glb').exists():                          # modelled in Blender
+            prop(self.root, 'tower', Vec3(cx, b, cz), 0, 1)                      # (tools/blender_tower.py)
+        else:
+            Entity(parent=land, model='cube', position=(cx, b + h / 2, cz), scale=(self.w, h, self.d),
+                   texture='textures/facade', texture_scale=(self.w / 2.5, h / 2.5))
+        fx0, fy0 = self.fp[0], self.fp[1]                                        # stair housing, back corner
+        Entity(parent=land, model='cube', position=(fx0 + 1.0, self.top + 1.15, -(fy0 + 0.2)), scale=(2.0, 2.3, 1.8),
+               color=color.rgb(64, 66, 78))
+        door = Entity(parent=land, model='cube', position=(fx0 + 1.0, self.top + 0.85, -(fy0 + 0.2) - 0.91),
+                      scale=(0.7, 1.3, 0.04), color=color.rgb(255, 196, 120))
+        door.setLightOff()
         templates = []                                                           # Hunyuan3D peaks, painted once
         for name in ('mountain_a', 'mountain_b'):
             if (ASSETS / 'models' / (name + '.glb')).exists():
