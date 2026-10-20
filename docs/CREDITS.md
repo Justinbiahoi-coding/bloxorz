@@ -34,5 +34,7 @@ The assignment explicitly allows recreating classic levels.
 - Mountains `Source/assets/models/mountain_*.glb`: generated image-to-3D with Hunyuan3D 2.1 in ComfyUI
   (`tools/comfy_img2mesh.py`) from SDXL images (seeds 601-602), snow painted by height in code.
 - Tower `Source/assets/models/tower.glb`: modelled by script in Blender (`tools/blender_tower.py`).
+- Intro scenery images (SDXL via ComfyUI, seeds 701-708): painted mountain panorama `backdrop_a.png`, cloud sprite,
+  concrete wall, grass, lit / dark window textures in `Source/assets/textures/`, processed by `tools/process_env.py`.
 - Rooftop equipment, path tiles, stairwell, block and the intro city are built from primitives in code;
   `assets/textures/facade.png` is drawn by code (pygame).

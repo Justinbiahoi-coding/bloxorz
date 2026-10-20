@@ -11,7 +11,7 @@ goes into the game. Everything is built from primitives and code-drawn textures.
 import math
 import random
 
-from ursina import Cone, Entity, Sky, Text, Vec3, camera, color, destroy, window
+from ursina import Entity, Mesh, Sky, Text, Vec3, camera, color, destroy, window
 
 from .world import ASSETS, floor_y, paint_by_height, point_camera
 
@@ -46,6 +46,7 @@ class Intro:
                            color=color.rgba(255, 255, 255, 0))
         self.frame = Entity(parent=camera.ui, model='quad', position=(0.55, -0.36), scale=(0.36, 0.09),
                             color=color.rgba(20, 22, 34, 0), z=0.1)
+        self._grain()
         self.skip = Text('press any key to skip', origin=(0, 0), y=-0.44, scale=1, color=color.rgba(220, 220, 230, 160))
         self.t, self.done = 0.0, False
         self.apply()
@@ -78,7 +79,7 @@ class Intro:
         land.setFog(fog)
         b, cx, cz = self.bottom, self.cx, self.cz
         Entity(parent=land, model='plane', position=(cx, b, cz - 40), scale=(500, 1, 500),
-               color=color.rgb(46, 74, 52))                                      # meadow
+               texture='textures/grass', texture_scale=(120, 120), color=color.rgb(120, 150, 130))   # meadow
         Entity(parent=land, model='plane', position=(cx + 5, b + 0.02, cz - 70), scale=(3.4, 1, 130),
                rotation_y=-7, color=color.rgb(96, 74, 56))                       # dirt path to the tower
         h = self.top - b
@@ -100,13 +101,14 @@ class Intro:
                 paint_by_height(t.children[0])
                 t.enabled = False
                 templates.append(t)
-        for _ in range(12):                                                      # mountains on the horizon
-            ang = rng.uniform(0.5, 2.65)
-            dist = rng.uniform(170, 260)
+        self._backdrop(b)
+        for _ in range(7):                                                       # 3D mountains in the middle distance
+            ang = rng.uniform(0.55, 2.6)
+            dist = rng.uniform(150, 200)
             x, z = cx + math.cos(ang) * dist, cz + math.sin(ang) * dist
             if templates:
                 peak = Entity(parent=land, position=(x, b - 3, z), rotation_y=rng.uniform(0, 360),
-                              scale=rng.uniform(80, 130))
+                              scale=rng.uniform(60, 95))
                 src = rng.choice(templates).children[0]
                 src.copyTo(peak).setPos(src.getPos())
             else:
@@ -127,18 +129,38 @@ class Intro:
             kind = rng.choice(['grass', 'grass_large', 'grass_leafsLarge', 'grass', 'rock_largeA', 'stump_old',
                                'plant_bush'])
             self._night_tint(prop(land, kind, Vec3(x, b, z), rng.uniform(0, 360), rng.uniform(1.5, 3.2)))
-        moon = Entity(parent=self.root, model='sphere', position=(cx - 90, self.top + 70, cz + 230), scale=16,
-                      color=color.rgb(236, 236, 246))
-        moon.setLightOff()
-        halo = Entity(parent=self.root, model='circle', position=moon.position + Vec3(0, 0, 2), scale=46,
-                      color=color.rgba(190, 200, 255, 40), billboard=True)
-        halo.setLightOff()
-        for _ in range(16):                                                      # soft clouds
-            x, z, y = cx + rng.uniform(-110, 110), cz + rng.uniform(40, 170), self.top + rng.uniform(-20, 28)
-            for j in range(3):
-                c = Entity(parent=self.root, model='sphere', position=(x + j * 5 - 5, y + rng.uniform(-1, 1), z),
-                           scale=(rng.uniform(9, 16), rng.uniform(3, 5), 7), color=color.rgba(150, 156, 190, 120))
-                c.setLightOff()
+        for _ in range(14):                                                      # SDXL cloud sprites
+            x, z, y = cx + rng.uniform(-120, 120), cz + rng.uniform(50, 180), self.top + rng.uniform(-25, 30)
+            w = rng.uniform(26, 48)
+            c = Entity(parent=self.root, model='quad', texture='textures/' + 'cloud_a',
+                       position=(x, y, z), scale=(w, w * 0.5), billboard=True, color=color.rgba(190, 200, 235, 210))
+            c.setLightOff()
+            c.setDepthWrite(False)
+
+    def _backdrop(self, b):
+        """The SDXL panorama (mountains, moon, clouds, forest edge) on a wide arc behind the tower."""
+        r, a0, a1, segs = 270.0, math.radians(33), math.radians(177), 40   # image centre (moon) left of the tower
+        height = r * (a1 - a0) / 3.0                                  # keep the cropped image's 3:1 aspect
+        verts, uvs, tris = [], [], []
+        for i in range(segs + 1):
+            k = i / segs
+            ang = a1 - (a1 - a0) * k                                   # left to right as seen from the meadow
+            x, z = self.cx + math.cos(ang) * r, self.cz + math.sin(ang) * r
+            verts += [Vec3(x, b - 55, z), Vec3(x, b - 55 + height, z)]
+            uvs += [(k, 0), (k, 1)]
+            if i:
+                j = 2 * i
+                tris += [j - 2, j - 1, j, j - 1, j + 1, j]
+        for name, lift in (('backdrop_a', 0.0),):
+            e = Entity(parent=self.root, model=Mesh(vertices=verts, triangles=tris, uvs=uvs), texture='textures/' + name,
+                       double_sided=True, y=lift)
+            e.setLightOff()
+            e.setFogOff()
+
+    def _grain(self):
+        self.noise = Entity(parent=camera.ui, model='quad', texture='textures/noise', z=-0.6,
+                            scale=(window.aspect_ratio, 1), color=color.rgba(255, 255, 255, 26))
+        self.noise.texture_scale = (window.aspect_ratio * 3, 3)
 
     # ---- the camera ----
     def _shot(self, i, k):
@@ -179,6 +201,7 @@ class Intro:
         elif i < len(SHOTS) - 1 and SHOTS[i] - t < FADE:
             fade = 1 - (SHOTS[i] - t) / FADE
         self.overlay.color = color.rgba(0, 0, 0, int(255 * fade))
+        self.noise.texture_offset = (random.random(), random.random())   # film grain flicker
         a = 0.0 if i < 3 else min(1.0, t / 1.2)
         self.title.color = color.rgba(240, 232, 220, int(255 * a))
         self.sub.color = color.rgba(226, 92, 76, int(255 * a))
@@ -188,6 +211,6 @@ class Intro:
         self.skip.enabled = not ready and i < 3
 
     def destroy(self):
-        for e in (self.root, self.overlay, self.vignette, self.title, self.sub, self.button, self.frame, self.skip,
+        for e in (self.root, self.overlay, self.vignette, self.noise, self.title, self.sub, self.button, self.frame, self.skip,
                   *self.templates):
             destroy(e)
