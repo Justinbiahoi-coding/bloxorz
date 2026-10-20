@@ -14,7 +14,10 @@ from .floor import TILE_TOP
 from .world import ASSETS
 
 ACTIVE = color.rgb(255, 150, 40)
-HAS_MODEL = (ASSETS / 'models' / 'player_can.glb').exists()
+# models/player.glb (a downloaded character, kept out of git until its licence is known) wins over
+# models/player_can.glb (our own Blender trash can)
+MODEL = next((n for n in ('player', 'player_can') if (ASSETS / 'models' / (n + '.glb')).exists()), None)
+HAS_MODEL = MODEL is not None
 
 
 def _boxes(session, state):
@@ -35,7 +38,7 @@ def _piece(box, base, ring):
     holder = Entity(position=_centre(box, base))
     spinner = Entity(parent=holder)
     if HAS_MODEL:
-        can = Entity(parent=spinner, model='models/player_can', scale=(1, sz / 2 if sz == 1 and sx == sy else 1, 1))
+        can = Entity(parent=spinner, model='models/' + MODEL, scale=(1, sz / 2 if sz == 1 and sx == sy else 1, 1))
         if sx == 2:
             can.rotation_z = 90                       # lying east-west
         elif sy == 2:

@@ -4,3 +4,6 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 results/
+
+# downloaded character without a known licence; keep it local
+Source/assets/models/player.glb
