@@ -37,6 +37,8 @@ class App:
         # open fullscreen once to learn the real usable size (macOS keeps the notch strip), then reopen
         # GPU-scaled with vsync at exactly that size, so there are no black bars
         size = pygame.display.set_mode((0, 0), pygame.FULLSCREEN).get_size()
+        pygame.display.quit()                  # a SCALED window cannot replace a plain one; start the display over
+        pygame.display.init()
         self.surface = pygame.display.set_mode(size, pygame.FULLSCREEN | pygame.SCALED, vsync=1)
         self.w, self.h = self.surface.get_size()
         pygame.display.set_caption('Bloxorz Tower')
