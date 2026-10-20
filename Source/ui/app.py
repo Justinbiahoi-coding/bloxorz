@@ -34,7 +34,7 @@ class App:
         pygame.init()
 
         self.clock = pygame.time.Clock()
-        self.surface = pygame.display.set_mode((0, 0), pygame.FULLSCREEN | pygame.SCALED, vsync=1)   # the display's own resolution
+        self.surface = pygame.display.set_mode(pygame.display.get_desktop_sizes()[0], pygame.FULLSCREEN | pygame.SCALED, vsync=1)
         self.w, self.h = self.surface.get_size()
         pygame.display.set_caption('Bloxorz Tower')
 
