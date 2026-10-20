@@ -19,6 +19,8 @@ def prop(parent, name, pos, angle=0, scale=FURNITURE):
     """A Kenney model centred on ``pos`` (x/z) and standing on its y, turned by ``angle`` degrees."""
     holder = Entity(parent=parent, position=pos, rotation_y=angle)
     m = Entity(parent=holder, model='models/' + name, scale=scale)
+    for mat in m.findAllMaterials():            # Kenney nature models are marked fully metallic, which renders
+        mat.setMetallic(0)                      # black without an environment map
     b = m.model_bounds
     m.position = Vec3(-b.center.x * scale, -b.start.y * scale, -b.center.z * scale)
     return holder

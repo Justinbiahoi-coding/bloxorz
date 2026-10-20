@@ -51,53 +51,76 @@ class Intro:
         self.apply()
 
     # ---- the set ----
+    @staticmethod
+    def _night_tint(holder):
+        """Re-colour Kenney's bright nature palette for a moonlit night: deep green needles, dark bark,
+        blue-grey rock."""
+        from panda3d.core import LColor
+        for mat in holder.findAllMaterials():
+            name = mat.getName().lower()
+            if 'leaf' in name or 'grass' in name:
+                mat.setBaseColor(LColor(0.09, 0.22, 0.17, 1))
+            elif 'wood' in name or 'bark' in name:
+                mat.setBaseColor(LColor(0.20, 0.13, 0.10, 1))
+            else:
+                mat.setBaseColor(LColor(0.30, 0.33, 0.45, 1))
+
     def _world(self):
+        """Meadow, pine forest, rocky mountains (Kenney Nature Kit, CC0), moon, clouds, fog and the tower."""
+        from panda3d.core import Fog
+        from .floor import prop
         rng = random.Random(4)
-        r = self.root
-        Sky(parent=r, texture='textures/night_sky')
-        b = self.bottom
-        Entity(parent=r, model='plane', position=(self.cx, b, self.cz - 40), scale=(400, 1, 400),
-               color=color.rgb(30, 44, 36))                                    # meadow
-        Entity(parent=r, model='plane', position=(self.cx + 6, b + 0.02, self.cz - 70), scale=(3.2, 1, 130),
-               rotation_y=-8, color=color.rgb(70, 52, 40))                     # dirt path to the tower
+        Sky(parent=self.root, texture='textures/night_sky')
+        land = Entity(parent=self.root)
+        fog = Fog('night mist')
+        fog.setColor(0.09, 0.11, 0.2)
+        fog.setExpDensity(0.0065)
+        land.setFog(fog)
+        b, cx, cz = self.bottom, self.cx, self.cz
+        Entity(parent=land, model='plane', position=(cx, b, cz - 40), scale=(500, 1, 500),
+               color=color.rgb(46, 74, 52))                                      # meadow
+        Entity(parent=land, model='plane', position=(cx + 5, b + 0.02, cz - 70), scale=(3.4, 1, 130),
+               rotation_y=-7, color=color.rgb(96, 74, 56))                       # dirt path to the tower
         h = self.top - b
-        Entity(parent=r, model='cube', position=(self.cx, b + h / 2, self.cz), scale=(self.w, h, self.d),
-               texture='textures/facade', texture_scale=(self.w / 2, h / 2))  # the tower
-        Entity(parent=r, model='cube', position=(self.cx, self.top + 0.25, self.cz), scale=(self.w + 0.6, 0.5, self.d + 0.6),
-               color=color.rgb(70, 72, 84))                                    # roof slab and parapet
-        Entity(parent=r, model='cube', position=(self.cx + 1, self.top + 1.4, self.cz + 1), scale=(2.4, 2.4, 2.4),
-               color=color.rgb(54, 56, 66))                                    # stair housing on the roof
-        for _ in range(9):                                                     # mountains on the horizon
-            ang = rng.uniform(0.6, 2.6)
-            dist = rng.uniform(160, 230)
-            x, z = self.cx + math.cos(ang) * dist, self.cz + math.sin(ang) * dist
-            hh = rng.uniform(55, 110)
-            Entity(parent=r, model=Cone(5), position=(x, b, z), scale=(hh * 1.3, hh, hh * 1.3),
-                   color=color.rgb(34, 42, 70), rotation_y=rng.uniform(0, 360))
-            Entity(parent=r, model=Cone(5), position=(x, b + hh * 0.72, z), scale=(hh * 0.37, hh * 0.28, hh * 0.37),
-                   color=color.rgb(150, 160, 190))                             # snow caps
-        for _ in range(260):                                                   # pine forest around the meadow
+        Entity(parent=land, model='cube', position=(cx, b + h / 2, cz), scale=(self.w, h, self.d),
+               texture='textures/facade', texture_scale=(self.w / 2.5, h / 2.5))   # the tower
+        Entity(parent=land, model='cube', position=(cx, self.top + 0.25, cz), scale=(self.w + 0.6, 0.5, self.d + 0.6),
+               color=color.rgb(80, 82, 96))                                      # roof slab and parapet
+        Entity(parent=land, model='cube', position=(cx + 1, self.top + 1.4, cz + 1), scale=(2.4, 2.4, 2.4),
+               color=color.rgb(64, 66, 78))                                      # stair housing on the roof
+        peaks = ['rock_tallA', 'rock_tallC', 'rock_tallE', 'rock_tallG', 'rock_tallI']
+        for _ in range(12):                                                      # mountains on the horizon
+            ang = rng.uniform(0.5, 2.65)
+            dist = rng.uniform(170, 260)
+            x, z = cx + math.cos(ang) * dist, cz + math.sin(ang) * dist
+            self._night_tint(prop(land, rng.choice(peaks), Vec3(x, b - 2, z), rng.uniform(0, 360), rng.uniform(55, 95)))
+        pines = ['tree_pineTallA_detailed', 'tree_pineTallB_detailed', 'tree_pineTallC_detailed',
+                 'tree_pineTallD_detailed', 'tree_pineDefaultA', 'tree_pineDefaultB', 'tree_pineRoundA',
+                 'tree_pineRoundC']
+        for _ in range(320):                                                     # pine forest around the meadow
             ang = rng.uniform(0, 6.283)
-            dist = rng.uniform(self.w + 10, 120)
-            x, z = self.cx + math.cos(ang) * dist, self.cz + math.sin(ang) * dist
-            if z < self.cz - 6 and abs(x - self.cx) < 22:                     # keep the meadow open
+            dist = rng.uniform(self.w + 8, 130)
+            x, z = cx + math.cos(ang) * dist, cz + math.sin(ang) * dist
+            if z < cz - 6 and abs(x - cx) < 24:                                 # keep the meadow open
                 continue
-            th = rng.uniform(6, 13)
-            Entity(parent=r, model=Cone(6), position=(x, b + th * 0.2, z), scale=(th * 0.42, th, th * 0.42),
-                   color=color.rgb(18 + rng.randint(0, 8), 34 + rng.randint(0, 10), 30))
-        moon = Entity(parent=r, model='sphere', position=(self.cx - 90, self.top + 70, self.cz + 230), scale=16,
+            self._night_tint(prop(land, rng.choice(pines), Vec3(x, b, z), rng.uniform(0, 360), rng.uniform(7, 12)))
+        for _ in range(140):                                                     # grass tufts, rocks, stumps
+            x, z = cx + rng.uniform(-30, 30), cz - rng.uniform(8, 125)
+            kind = rng.choice(['grass', 'grass_large', 'grass_leafsLarge', 'grass', 'rock_largeA', 'stump_old',
+                               'plant_bush'])
+            self._night_tint(prop(land, kind, Vec3(x, b, z), rng.uniform(0, 360), rng.uniform(1.5, 3.2)))
+        moon = Entity(parent=self.root, model='sphere', position=(cx - 90, self.top + 70, cz + 230), scale=16,
                       color=color.rgb(236, 236, 246))
         moon.setLightOff()
-        halo = Entity(parent=r, model='circle', position=moon.position + Vec3(0, 0, 2), scale=46,
+        halo = Entity(parent=self.root, model='circle', position=moon.position + Vec3(0, 0, 2), scale=46,
                       color=color.rgba(190, 200, 255, 40), billboard=True)
         halo.setLightOff()
-        for _ in range(14):                                                    # low clouds
-            x = self.cx + rng.uniform(-90, 90)
-            z = self.cz + rng.uniform(40, 160)
-            y = self.top + rng.uniform(-20, 25)
-            c = Entity(parent=r, model='sphere', position=(x, y, z), scale=(rng.uniform(14, 30), 4, 8),
-                       color=color.rgba(120, 128, 160, 150))
-            c.setLightOff()
+        for _ in range(16):                                                      # soft clouds
+            x, z, y = cx + rng.uniform(-110, 110), cz + rng.uniform(40, 170), self.top + rng.uniform(-20, 28)
+            for j in range(3):
+                c = Entity(parent=self.root, model='sphere', position=(x + j * 5 - 5, y + rng.uniform(-1, 1), z),
+                           scale=(rng.uniform(9, 16), rng.uniform(3, 5), 7), color=color.rgba(150, 156, 190, 120))
+                c.setLightOff()
 
     # ---- the camera ----
     def _shot(self, i, k):

@@ -29,5 +29,7 @@ The assignment explicitly allows recreating classic levels.
 ## 3D version (`Source/ui3d/`, run `python main3d.py`)
 - Furniture and walls: [Kenney Furniture Kit](https://kenney.nl/assets/furniture-kit) (CC0),
   `Source/assets/models/*.glb`, licence in `Source/assets/models/LICENSE-kenney-furniture.txt`.
+- Intro landscape (pines, rocks used as mountains, grass, stumps, bushes): [Kenney Nature Kit](https://kenney.nl/assets/nature-kit)
+  (CC0), re-coloured for night in code; licence in `Source/assets/models/LICENSE-kenney-nature.txt`.
 - Rooftop equipment, path tiles, stairwell, block and the intro city are built from primitives in code;
   `assets/textures/facade.png` is drawn by code (pygame).
