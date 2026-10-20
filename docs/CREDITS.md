@@ -25,3 +25,9 @@ The assignment explicitly allows recreating classic levels.
 - Prop sprites `Source/assets/props/` were made image-to-image: the code-drawn props
   (`ui/building.py: draw_code_prop`) are rendered as sketches by `tools/make_sketches.py`, then SDXL adds
   detail at denoise 0.8 (seeds 401-408, 501-509), and `tools/process_assets.py` removes the white background.
+
+## 3D version (`Source/ui3d/`, run `python main3d.py`)
+- Furniture and walls: [Kenney Furniture Kit](https://kenney.nl/assets/furniture-kit) (CC0),
+  `Source/assets/models/*.glb`, licence in `Source/assets/models/LICENSE-kenney-furniture.txt`.
+- Rooftop equipment, path tiles, stairwell, block and the intro city are built from primitives in code;
+  `assets/textures/facade.png` is drawn by code (pygame).
