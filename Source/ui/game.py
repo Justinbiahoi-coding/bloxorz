@@ -4,7 +4,7 @@ import pygame
 
 from engine.problem import DIRS
 
-from . import blockfx, rooftop
+from . import blockfx, building, rooftop
 
 
 MAX_TILE = 112
@@ -24,7 +24,7 @@ class Game:
     """Pygame view/controller for an engine GameSession."""
 
     def __init__(self, surface, W_HEIGHT_SIZE, W_WIDTH_SIZE, session,
-                 show_hint=False, background=None, tile=None):
+                 show_hint=False, background=None, tile=None, scene=None):
         self.surface = surface
         self.W_HEIGHT_SIZE = W_HEIGHT_SIZE
         self.W_WIDTH_SIZE = W_WIDTH_SIZE
@@ -36,12 +36,16 @@ class Game:
 
         # drawing: small maps are zoomed in (up to MAX_TILE), the biggest one just fits; board centred
         xs, ys = [x for x, _ in self.level.kinds], [y for _, y in self.level.kinds]
-        span = max(max(xs) - min(xs), max(ys) - min(ys)) + 1
+        span = max(max(xs) - min(xs), max(ys) - min(ys)) + 1 + (4 if scene else 0)   # keep two tiles of building in view
         self.square_size = tile or min(MAX_TILE, int(min(W_WIDTH_SIZE - 280, W_HEIGHT_SIZE - 140) / span))
         self.starting_x = self.CENTER_X - (min(xs) + max(xs) + 1) / 2 * self.square_size
         self.starting_y = self.CENTER_Y - (min(ys) + max(ys) + 1) / 2 * self.square_size
         self.ending_x = self.starting_x + self.level.size * self.square_size
         self.ending_y = self.starting_y + self.level.size * self.square_size
+
+        # background: sky, plus the skyscraper around the floor in tower mode (scene = (floor, floor_count))
+        self.sky = (background or rooftop.sky((W_WIDTH_SIZE, W_HEIGHT_SIZE))).copy()
+        self.beacon = building.bake(self.sky, self, *scene) if scene else None
 
         self.unavailable_color = (10, 10, 10)
         self.available_color = (50, 50, 100)
@@ -53,7 +57,6 @@ class Game:
                              'goal': self.goal_color}
         self.line_color = (255, 255, 255)
 
-        self.sky = background or rooftop.sky((W_WIDTH_SIZE, W_HEIGHT_SIZE))
         self.anim = None         # block roll in progress
         self.block_scale = 1.0   # <1 while the block drops through the goal hole
         self.font = pygame.font.Font(None, 50)
@@ -116,6 +119,7 @@ class Game:
 
     def draw(self):
         self.surface.blit(self.sky, (0, 0))
+        building.draw_beacon(self.surface, self.beacon, pygame.time.get_ticks())
         self.draw_map()
         self.draw_block()
         self.draw_hint()

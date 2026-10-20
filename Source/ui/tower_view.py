@@ -7,10 +7,11 @@ from engine import Tower
 
 from . import hud
 from .game import Game
+from .intro import Intro
 
 BACKGROUNDS = Path(__file__).resolve().parent.parent / 'assets' / 'backgrounds'
 THEMES = 4            # sky_0 (golden hour) .. sky_3 (night): the sky darkens as you go down
-FALL_MS, SLIDE_MS = 380, 620
+FALL_MS, SLIDE_MS, ENTER_MS = 380, 620, 750
 
 
 def _ease(t):
@@ -23,8 +24,10 @@ class TowerGame:
         self.tower = Tower()
         self.skies = {}
         self.game = self._make_game(surface)
-        self.phase, self.t0 = 'play', 0
+        self.intro = Intro(surface, width, height)
+        self.phase, self.t0 = 'intro', 0
         self.old = self.new = None
+        self.quit = False
 
     def _sky(self):
         i = min(THEMES - 1, self.tower.index * THEMES // self.tower.count)
@@ -39,14 +42,39 @@ class TowerGame:
         return self.skies[i]
 
     def _make_game(self, surface):
-        return Game(surface, self.h, self.w, self.tower.session, False, self._sky())
+        return Game(surface, self.h, self.w, self.tower.session, False, self._sky(),
+                    scene=(self.tower.index, self.tower.count))
 
     def should_quit(self):
-        return self.game.should_quit()
+        return self.quit or self.game.should_quit()
 
     def process(self, events):
         now = pygame.time.get_ticks()
         elapsed = now - self.t0
+        if self.phase == 'intro':
+            if any(e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE for e in events):
+                self.quit = True
+                return
+            self.intro.process(events)
+            if self.intro.finished:                       # dive into the roof
+                self.old = self.surface.copy()
+                self.new = pygame.Surface((self.w, self.h))
+                self._make_game(self.new).draw()
+                self.phase, self.t0 = 'enter', now
+            return
+        if self.phase == 'enter':
+            e = _ease(min(1, elapsed / ENTER_MS))
+            self.surface.blit(self.new, (0, 0))
+            zoom = 1 + 1.2 * e                            # the intro frame grows towards the roof and fades
+            big = pygame.transform.scale(self.old, (int(self.w * zoom), int(self.h * zoom)))
+            cx, cy = self.w // 2, self.intro.roof_y
+            big.set_alpha(int(255 * (1 - e)))
+            self.surface.blit(big, (cx - cx * zoom, cy - cy * zoom))
+            if elapsed >= ENTER_MS:
+                self.phase = 'play'
+            hud.draw_hud(self.surface, self.tower.index, self.tower.count, self.tower.session.moves)
+            hud.draw_tower(self.surface, self.tower.index, self.tower.count)
+            return
         if self.phase == 'play':
             self.game.process_input(events)
             self.game.draw()

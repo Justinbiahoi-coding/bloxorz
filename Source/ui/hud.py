@@ -36,14 +36,23 @@ def panel(surf, rect, alpha=185):
     surf.blit(layer, rect.topleft)
 
 
+def floor_name(floor, count):
+    """Building names, top floor first: ROOFTOP, FLOOR n ... FLOOR 1, LOBBY."""
+    if floor == 0:
+        return 'ROOFTOP'
+    if floor == count - 1:
+        return 'LOBBY'
+    return 'FLOOR {}'.format(count - 1 - floor)
+
+
 def draw_hud(surf, floor, count, moves):
-    """Top-left card: current floor and the moves taken on it."""
+    """Top-left card: where you are in the building and the moves taken on this floor."""
     k = scale(surf)
-    box = pygame.Rect(int(20 * k), int(20 * k), int(190 * k), int(82 * k))
+    box = pygame.Rect(int(20 * k), int(20 * k), int(270 * k), int(82 * k))
     panel(surf, box)
     pad = int(18 * k)
-    text(surf, 'FLOOR', 15, GOLD, topleft=(box.x + pad, box.y + int(10 * k)))
-    text(surf, '{} / {}'.format(floor + 1, count), 34, PAPER, topleft=(box.x + pad, box.y + int(28 * k)))
+    text(surf, 'LEVEL {} / {}'.format(floor + 1, count), 15, GOLD, topleft=(box.x + pad, box.y + int(10 * k)))
+    text(surf, floor_name(floor, count), 34, PAPER, topleft=(box.x + pad, box.y + int(28 * k)))
     text(surf, str(moves), 34, PAPER, topright=(box.right - pad, box.y + int(28 * k)))
     text(surf, 'MOVES', 15, GOLD, topright=(box.right - pad, box.y + int(10 * k)))
 
@@ -67,8 +76,8 @@ def draw_tower(surf, floor, count):
         layer = pygame.Surface(rect.size, pygame.SRCALPHA)
         pygame.draw.rect(layer, color, layer.get_rect(), border_radius=5)
         surf.blit(layer, rect.topleft)
-    text(surf, 'TOP', 13, PAPER, midbottom=(x + bar // 2, top - 4))
-    text(surf, 'STREET', 13, PAPER, midtop=(x + bar // 2, bottom + 4))
+    text(surf, 'ROOF', 13, PAPER, midbottom=(x + bar // 2, top - 4))
+    text(surf, 'LOBBY', 13, PAPER, midtop=(x + bar // 2, bottom + 4))
 
 
 def draw_finish(surf, total_moves, count):
@@ -80,7 +89,7 @@ def draw_finish(surf, total_moves, count):
     box = pygame.Rect(0, 0, int(440 * k), int(230 * k))
     box.center = (w // 2, h // 2)
     panel(surf, box, 235)
-    text(surf, 'STREET LEVEL', 16, GOLD, midtop=(box.centerx, box.y + int(26 * k)))
+    text(surf, 'GROUND FLOOR', 16, GOLD, midtop=(box.centerx, box.y + int(26 * k)))
     text(surf, 'You made it down', 40, PAPER, midtop=(box.centerx, box.y + int(52 * k)))
     text(surf, '{} floors  -  {} moves'.format(count, total_moves), 26, PAPER, midtop=(box.centerx, box.y + int(112 * k)))
     text(surf, 'Press ESC for the menu', 20, CORAL, midtop=(box.centerx, box.y + int(168 * k)))
