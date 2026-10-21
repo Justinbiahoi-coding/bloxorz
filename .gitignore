@@ -5,6 +5,6 @@ __pycache__/
 .DS_Store
 results/
 
-# downloaded character without a known licence; keep it local
+# intermediate exports of the character (the animated one in player_actor/ is what the game uses)
 Source/assets/models/player.glb
 Source/assets/models/player_parts/

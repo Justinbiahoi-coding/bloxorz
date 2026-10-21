@@ -282,3 +282,151 @@ class CharBlock:
 
 if ch.available():
     Block = CharBlock                                                    # noqa: F811
+
+
+# --------------------------------------------- animated character (Mattt_L's Trash Can, best) ----
+ACTOR_DIR = ASSETS / 'models' / 'player_actor'
+ACTOR_K = 2.0 / 2.279                                                    # Blender units -> game cells
+ACTOR_MOVES = {'walk': 0.46, 'hop': 0.42, 'step': 0.34}
+
+
+class ActorBlock:
+    """The rigged character with its own animations, blended per frame (see tools/blender_player_actor.py):
+    guard (one cell, feet front/back), guard_lunge (two cells in line), guard_wide (two cells across),
+    run (moving). Facing follows the last move; stances cross-fade; root motion is ours."""
+
+    def __init__(self):
+        import json
+        from direct.actor.Actor import Actor
+        from panda3d.core import Filename
+        self._Actor, self._path = Actor, Filename.fromOsSpecific(str(ACTOR_DIR / 'player.glb'))
+        self.drops = json.load(open(ACTOR_DIR / 'player_stances.json'))
+        self.chars, self.roll, self.yaw, self.clock = [], None, 0.0, 0.0
+
+    @property
+    def pieces(self):
+        return [c['holder'] for c in self.chars]
+
+    def clear(self):
+        for c in self.chars:
+            c['actor'].cleanup()
+            destroy(c['holder'])
+        self.chars, self.roll = [], None
+
+    @staticmethod
+    def _cells(session, state):
+        return [Vec3(x, 0, -y) for x, y in session.block_cells(state)]
+
+    def _stance(self, cells, yaw):
+        if len(cells) < 2:
+            return 'guard'
+        a = ch.to_local(cells[0] - cells[1], yaw)
+        return 'guard_wide' if abs(a.x) > abs(a.z) else 'guard_lunge'
+
+    def _ground(self, cells, stance, scale):
+        mid = sum(cells, Vec3(0)) / len(cells)
+        return Vec3(mid.x, self.ground - self.drops[stance] * scale, mid.z)
+
+    def _make(self, cells, stance, scale):
+        holder = Entity(position=self._ground(cells, stance, scale / ACTOR_K), rotation_y=self.yaw)
+        a = self._Actor(self._path)
+        a.reparentTo(holder)
+        a.setScale(scale)
+        for m in a.findAllMaterials():
+            m.setMetallic(0)
+        a.enableBlend()
+        a.setPlayRate(2.6, 'run')
+        for name in ('guard', 'guard_wide', 'guard_lunge', 'run'):
+            a.loop(name)
+        w = {n: (1.0 if n == stance else 0.0) for n in ('guard', 'guard_wide', 'guard_lunge', 'run')}
+        c = dict(holder=holder, actor=a, weights=w, target=dict(w), scale=scale, stance=stance)
+        self._apply(c)
+        return c
+
+    @staticmethod
+    def _apply(c):
+        for n, v in c['weights'].items():
+            c['actor'].setControlEffect(n, v)
+
+    def place(self, session, state, base):
+        self.clear()
+        self.ground = base + TILE_TOP
+        cells = self._cells(session, state)
+        groups = [[x] for x in cells] if state.split else [cells]
+        for g in groups:
+            scale = ACTOR_K * (0.6 if state.split else 1.0)
+            self.chars.append(self._make(g, self._stance(g, self.yaw), scale))
+
+    @property
+    def duration(self):
+        return ACTOR_MOVES[self.roll['kind']] if self.roll else 0.2
+
+    def start_roll(self, session, before, after, action, d, base):
+        if action == 'SWITCH' or before.split != after.split:
+            return False
+        idx = before.active if before.split else 0
+        c0, c1 = self._cells(session, before), self._cells(session, after)
+        if before.split:
+            c0, c1 = [c0[idx]], [c1[idx]]
+        if len(self.chars) <= idx:
+            self.place(session, before, base)
+        wd = Vec3(d[0], 0, -d[1])
+        yaw1 = ch.yaw_for(wd.x, wd.z)
+        char = self.chars[idx]
+        s1 = self._stance(c1, yaw1)
+        kind = 'hop' if len(c0) == 2 and len(c1) == 2 else ('step' if before.split else 'walk')
+        k = char['scale'] / ACTOR_K
+        self.roll = dict(kind=kind, session=session, after=after, base=base, char=char,
+                         p0=Vec3(char['holder'].position), p1=self._ground(c1, s1, k), yaw0=char['holder'].rotation_y,
+                         yaw1=yaw1, s0=char['stance'], s1=s1)
+        return True
+
+    def set_progress(self, t):
+        r = self.roll
+        c, h = r['char'], r['char']['holder']
+        e = ch._smooth(t)
+        h.rotation_y = ch._lerp_angle(r['yaw0'], r['yaw1'], ch._smooth(t / 0.3))
+        pos = r['p0'] + (r['p1'] - r['p0']) * e
+        tgt = {n: 0.0 for n in c['weights']}
+        if r['kind'] == 'hop':                                               # keep the guard, jump across
+            jump = ch._smooth((t - 0.15) / 0.7)
+            crouch = (1 - t / 0.15 if t < 0.15 else max(0.0, (t - 0.85) / 0.15)) * 0.08
+            pos = r['p0'] + (r['p1'] - r['p0']) * jump + Vec3(0, math.sin(math.pi * jump) * 0.38 - crouch, 0)
+            tgt[r['s1']] = 1.0
+        else:                                                                # run into the next stance
+            run = math.sin(math.pi * min(1.0, t * 1.15))
+            tgt['run'] = run
+            tgt[r['s0'] if t < 0.5 else r['s1']] = 1 - run
+            pos = pos + Vec3(0, abs(math.sin(math.pi * 2 * t)) * 0.06, 0)
+        h.position = pos
+        for n in c['weights']:
+            c['weights'][n] = tgt[n]
+        self._apply(c)
+
+    def finish(self):
+        r = self.roll
+        c = r['char']
+        self.yaw = r['yaw1']
+        c['stance'] = r['s1']
+        c['holder'].position, c['holder'].rotation_y = r['p1'], r['yaw1']
+        c['target'] = {n: (1.0 if n == r['s1'] else 0.0) for n in c['weights']}
+        self.roll = None
+        if r['after'].split != (len(self.chars) == 2) or len(self.chars) == 0:
+            self.place(r['session'], r['after'], r['base'])
+
+    def tick(self, dt, idle):
+        self.clock += dt
+        if self.roll is not None:
+            return
+        for c in self.chars:                                                 # ease weights to the stance
+            for n in c['weights']:
+                c['weights'][n] += (c['target'][n] - c['weights'][n]) * min(1.0, dt * 10)
+            self._apply(c)
+
+    @property
+    def rolling(self):
+        return self.roll is not None
+
+
+if (ACTOR_DIR / 'player.glb').exists():
+    Block = ActorBlock                                                   # noqa: F811
