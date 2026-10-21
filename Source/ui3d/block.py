@@ -311,6 +311,7 @@ class ActorBlock:
         for c in self.chars:
             c['actor'].cleanup()
             destroy(c['holder'])
+            destroy(c['shadow'])
         self.chars, self.roll = [], None
 
     @staticmethod
@@ -339,9 +340,18 @@ class ActorBlock:
         for name in ('guard', 'guard_wide', 'guard_lunge', 'run'):
             a.loop(name)
         w = {n: (1.0 if n == stance else 0.0) for n in ('guard', 'guard_wide', 'guard_lunge', 'run')}
-        c = dict(holder=holder, actor=a, weights=w, target=dict(w), scale=scale, stance=stance)
+        shadow = Entity(model='circle', rotation_x=90, scale=0.9 * scale / ACTOR_K, color=color.rgba(0, 0, 0, 110))
+        shadow.setLightOff()                                             # soft blob shadow on the floor
+        c = dict(holder=holder, actor=a, weights=w, target=dict(w), scale=scale, stance=stance, shadow=shadow)
         self._apply(c)
+        self._shadow(c)
         return c
+
+    def _shadow(self, c):
+        h = c['holder']
+        c['shadow'].position = Vec3(h.x, self.ground + 0.01, h.z)
+        lift = max(0.0, h.y - (self.ground - self.drops[c['stance']] * c['scale'] / ACTOR_K))
+        c['shadow'].scale = 0.9 * c['scale'] / ACTOR_K * max(0.5, 1 - lift)
 
     @staticmethod
     def _apply(c):
@@ -416,6 +426,8 @@ class ActorBlock:
 
     def tick(self, dt, idle):
         self.clock += dt
+        for c in self.chars:
+            self._shadow(c)
         if self.roll is not None:
             return
         for c in self.chars:                                                 # ease weights to the stance

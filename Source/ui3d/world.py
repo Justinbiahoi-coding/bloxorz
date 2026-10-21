@@ -29,28 +29,36 @@ def cell_pos(x, y, base_y=0.0, h=0.0):
 
 
 def lights(render):
-    """A warm key light that casts shadows plus a cool fill; Panda3D's shader generator does the shading
-    (works on macOS' OpenGL 2.1, unlike Ursina's GLSL 1.50 shaders)."""
-    from panda3d.core import AmbientLight, DirectionalLight, Vec4
-    sun = DirectionalLight('sun')
-    sun.setColor(Vec4(1.15, 1.08, 0.98, 1))
-    sun.setShadowCaster(True, 2048, 2048)
-    lens = sun.getLens()
-    lens.setFilmSize(40, 40)
-    lens.setNearFar(1, 120)
+    """Moonlight from above-left plus a cool fill and a warm lantern that follows the player.
+    Note: Ursina runs Panda3D y-up, so light positions are plain Ursina coordinates. Built-in Ursina
+    cubes have no normals; lit geometry uses models/prim/*.glb (tools/blender_primitives.py)."""
+    from panda3d.core import AmbientLight, DirectionalLight, PointLight, Vec4
+    sun = DirectionalLight('moon')
+    sun.setColor(Vec4(1.05, 1.0, 1.1, 1))
     sun_np = render.attachNewNode(sun)
     render.setLight(sun_np)
     amb = AmbientLight('fill')
-    amb.setColor(Vec4(0.62, 0.62, 0.68, 1))
+    amb.setColor(Vec4(0.46, 0.47, 0.56, 1))
     render.setLight(render.attachNewNode(amb))
+    lamp = PointLight('lantern')
+    lamp.setColor(Vec4(1.0, 0.78, 0.5, 1))
+    lamp.setAttenuation((1, 0, 0.08))
+    lamp_np = render.attachNewNode(lamp)
+    render.setLight(lamp_np)
+    sun_np.setPythonTag('lantern', lamp_np)
     render.setShaderAuto()
     return sun_np
 
 
 def aim_sun(sun_np, target):
-    """Keep the shadow camera over the floor being played (Ursina's x, y, z are Panda's x, z, y)."""
-    sun_np.setPos(target.x - 7, target.z - 9, target.y + 20)
-    sun_np.lookAt(target.x, target.z, target.y)
+    """Moon over the floor being played (from above, left and a bit behind the camera)."""
+    sun_np.setPos(target.x - 8, target.y + 16, target.z - 10)
+    sun_np.lookAt(target.x, target.y, target.z)
+
+
+def move_lantern(sun_np, pos):
+    """The warm light pool rides above the player."""
+    sun_np.getPythonTag('lantern').setPos(pos.x, pos.y + 2.6, pos.z - 0.6)
 
 
 @lru_cache(maxsize=None)

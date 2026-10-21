@@ -12,7 +12,7 @@ from ui.hud import floor_name
 from .block import Block
 from .floor import Floor
 from .intro import Intro
-from .world import FLOOR_H, aim_sun, point_camera
+from .world import FLOOR_H, aim_sun, move_lantern, point_camera
 
 KEYS = {'left arrow': 'LEFT', 'right arrow': 'RIGHT', 'up arrow': 'DOWN', 'down arrow': 'UP'}
 ROLL_S, FALL_S, DESCEND_S = 0.17, 0.45, 1.4
@@ -37,7 +37,7 @@ class TowerGame(Entity):
         self.block = Block()
         self.phase, self.t = 'play', 0.0
         self.queued = None
-        camera.fov = 38
+        camera.fov = 42
         self._place_block()
         self._aim(self.floor)
         self.hud_name = Text('', position=window.top_left + Vec3(0.06, -0.05, 0), scale=2.2, color=color.white)
@@ -55,9 +55,20 @@ class TowerGame(Entity):
     def _place_block(self):
         self.block.place(self.tower.session, self.tower.session.state, self.floor.base)
 
-    def _camera_for(self, floor):
-        dist = floor.size * 0.95 + 4
-        return floor.centre + Vec3(0, dist * 0.95, -dist * 0.78), floor.centre
+    def _player_pos(self, floor):
+        pieces = self.block.pieces if floor is self.floor else []
+        if not pieces:
+            return floor.centre
+        p = sum((e.position for e in pieces), Vec3(0)) / len(pieces)
+        return Vec3(p.x, floor.base, p.z)
+
+    def _camera_for(self, floor, focus=None):
+        """Closer, lower camera (about 52 degrees) that keeps the player in frame and some of the level."""
+        focus = focus if focus is not None else self._player_pos(floor)
+        c = floor.centre
+        target = Vec3(c.x * 0.45 + focus.x * 0.55, floor.base + 0.6, c.z * 0.45 + focus.z * 0.55)
+        dist = max(11.0, min(21.0, floor.span * 0.95 + 6.0))
+        return target + Vec3(0, dist * 0.78, -dist * 0.62), target
 
     def _aim(self, floor):
         pos, target = self._camera_for(floor)
@@ -119,6 +130,16 @@ class TowerGame(Entity):
     def update(self):
         dt = time.dt
         self.block.tick(dt, self.phase == 'play')
+        self.floor.animate(time.time())
+        if self.phase in ('play', 'roll'):                    # camera and lantern follow the player smoothly
+            pos, target = self._camera_for(self.floor)
+            k = min(1.0, dt * 3.0)
+            camera.position = camera.position + (pos - camera.position) * k
+            prev = getattr(self, 'cam_target', target)
+            self.cam_target = prev + (target - prev) * k
+            point_camera(camera, self.cam_target)
+            move_lantern(self.sun, self._player_pos(self.floor))
+            aim_sun(self.sun, self.cam_target)
         if self.floor.beacon:
             self.floor.beacon.color = color.rgb(255, 60, 50) if int(time.time() * 1.6) % 2 else color.rgb(90, 30, 30)
         if self.phase == 'intro':
