@@ -7,3 +7,4 @@ results/
 
 # downloaded character without a known licence; keep it local
 Source/assets/models/player.glb
+Source/assets/models/player_parts/

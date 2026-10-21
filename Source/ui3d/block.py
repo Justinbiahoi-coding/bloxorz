@@ -166,3 +166,119 @@ class Block:
     @property
     def rolling(self):
         return self.roll is not None
+
+
+# ---------------------------------------------------------------- walking character (preferred) ----
+from . import character as ch                                         # noqa: E402
+
+CHAR_MOVES = {'walk': 0.42, 'hop': 0.40, 'step': 0.30}                  # durations (s)
+
+
+class CharBlock:
+    """Same interface as Block, but the player is the walking character (see ui3d/character.py)."""
+
+    def __init__(self):
+        self.rigs, self.roll, self.yaw = [], None, 0.0
+        self.clock, self.squash = 0.0, 0.0
+
+    @property
+    def pieces(self):
+        return [r.root for r in self.rigs]
+
+    def clear(self):
+        for r in self.rigs:
+            r.destroy()
+        self.rigs, self.roll = [], None
+
+    @staticmethod
+    def _cells(session, state):
+        return [Vec3(x, 0, -y) for x, y in session.block_cells(state)]
+
+    def _guard(self, cells, yaw):
+        if len(cells) < 2:
+            return 0.0
+        a = ch.to_local(cells[0] - cells[1], yaw)
+        return 1.0 if abs(a.x) > abs(a.z) else 0.0                       # cells across the facing
+
+    def place(self, session, state, base):
+        self.clear()
+        self.ground = base + TILE_TOP
+        cells = self._cells(session, state)
+        groups = [[c] for c in cells] if state.split else [cells]
+        for g in groups:
+            r = ch.Rig(Vec3(g[0].x, self.ground, g[0].z), self.yaw, 0.6 if state.split else 1.0)
+            r.guard = self._guard(g, self.yaw)
+            r.pose(ch.feet_for(g, self.yaw, self.ground), self.yaw)
+            self.rigs.append(r)
+
+    @property
+    def duration(self):
+        return CHAR_MOVES[self.roll['kind']] if self.roll else 0.2
+
+    def start_roll(self, session, before, after, action, d, base):
+        if action == 'SWITCH' or before.split != after.split:
+            return False
+        self.place(session, before, base)
+        idx = before.active if before.split else 0
+        c0 = self._cells(session, before)
+        c1 = self._cells(session, after)
+        if before.split:
+            c0, c1 = [c0[idx]], [c1[idx]]
+        wd = Vec3(d[0], 0, -d[1])
+        yaw1 = ch.yaw_for(wd.x, wd.z)
+        kind = 'hop' if len(c0) == 2 and len(c1) == 2 else ('step' if before.split else 'walk')
+        rig = self.rigs[idx]
+        f0 = [Vec3(f) for f in rig.feet]
+        f1 = ch.feet_for(c1, yaw1, self.ground)
+        lead = 0 if (f1[0] - f0[0]).length() >= (f1[1] - f0[1]).length() else 1
+        self.roll = dict(kind=kind, session=session, after=after, base=base, idx=idx, rig=rig, f0=f0, f1=f1,
+                         yaw0=rig.yaw, yaw1=yaw1, lead=lead, g0=rig.guard, g1=self._guard(c1, yaw1))
+        return True
+
+    def set_progress(self, t):
+        r = self.roll
+        rig = r['rig']
+        yaw = ch._lerp_angle(r['yaw0'], r['yaw1'], ch._smooth(t / 0.3))  # turn to face the move first
+        rig.guard = r['g0'] + (r['g1'] - r['g0']) * ch._smooth(t)
+        f0, f1 = r['f0'], r['f1']
+        if r['kind'] == 'hop':                                           # both feet together, guard up
+            p = ch._smooth((t - 0.18) / 0.64)
+            air = math.sin(math.pi * p) * 0.42
+            feet = [f0[i] + (f1[i] - f0[i]) * p for i in (0, 1)]
+            crouch = max(0.0, 1 - t / 0.18) if t < 0.18 else max(0.0, (t - 0.82) / 0.18)
+            rig.swing = 0.0
+            rig.pose(feet, yaw, lift=(air, air), crouch=crouch, bob=air * 0.6)
+            return
+        windows = ((0.0, 0.62), (0.34, 0.96))                           # walk: lead foot, then the other
+        feet, lift = [None, None], [0.0, 0.0]
+        for order, i in enumerate((r['lead'], 1 - r['lead'])):
+            a, b = windows[order]
+            p = ch._smooth((t - a) / (b - a))
+            feet[i] = f0[i] + (f1[i] - f0[i]) * p
+            lift[i] = math.sin(math.pi * p) * (0.3 if r['kind'] == 'walk' else 0.22)
+        rig.swing = 28 * math.sin(2 * math.pi * t) * (1 if r['lead'] == 0 else -1)
+        rig.pose(feet, yaw, lift=tuple(lift), bob=0.05 * math.sin(2 * math.pi * t), lean=7 * math.sin(math.pi * t))
+
+    def finish(self):
+        r = self.roll
+        self.yaw = r['yaw1']
+        self.place(r['session'], r['after'], r['base'])
+        self.squash = 0.12 if r['kind'] == 'hop' else 0.06
+
+    def tick(self, dt, idle):
+        self.clock += dt
+        self.squash = max(0.0, self.squash - dt * 0.8)
+        if self.roll is not None or not idle:
+            return
+        bob = 0.02 * math.sin(self.clock * 2.4) - self.squash * math.cos(self.clock * 30) * 0.5
+        for rig in self.rigs:
+            rig.swing = 3 * math.sin(self.clock * 1.7)
+            rig.pose(rig.feet, rig.yaw, bob=bob)
+
+    @property
+    def rolling(self):
+        return self.roll is not None
+
+
+if ch.available():
+    Block = CharBlock                                                    # noqa: F811
