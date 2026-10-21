@@ -1,6 +1,0 @@
-"Trash Can" character by Mattt_L — https://mattt-l.itch.io/trash-can
-Licence: Creative Commons Attribution-NonCommercial-ShareAlike (CC BY-NC-SA).
-
-player.glb is a derivative of the original FBX (re-bound to its deform bones, re-baked: guard, guard_wide,
-guard_lunge stances made by IK from the artist's boxing pose; run cycle resampled) made with
-tools/blender_player_actor.py. It is shared under the same CC BY-NC-SA licence, for non-commercial use.

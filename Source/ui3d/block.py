@@ -22,7 +22,9 @@ ACTIVE = color.rgb(255, 150, 40)
 # models/player.glb (a downloaded character, kept out of git until its licence is known) wins over
 # models/player_can.glb (our own Blender trash can)
 MODEL = next((n for n in ('player', 'player_can') if (ASSETS / 'models' / (n + '.glb')).exists()), None)
-HAS_MODEL = MODEL is not None
+# The characters are switched off for now: the player is the plain blue block.
+USE_CHARACTER = False
+HAS_MODEL = USE_CHARACTER and MODEL is not None
 
 # per kind of move: duration (s), arc height (cells), landing squash
 MOVES = {'dive': (0.36, 0.55, 0.16),
@@ -67,7 +69,7 @@ def _piece(box, base, ring, orient):
             mat.setMetallic(0)
     else:
         holder.rotation = (0, 0, 0)
-        Entity(parent=spinner, model='cube', scale=(sx, sz, sy), color=color.rgb(62, 112, 208))
+        Entity(parent=spinner, model='models/prim/box', scale=(sx, sz, sy), color=color.rgb(62, 112, 208))
     if ring:
         Entity(parent=holder, model='cube', y=0.27 if sz == 1 else 1.02, scale=(1.0, 0.03, 1.0), color=ACTIVE)
     holder.spinner = spinner
@@ -136,7 +138,7 @@ class Block:
             side = wd.x if piece.rotation_z else -wd.z
             piece.spinner.rotation_y = math.degrees(1 / 0.46) * e * side
             return
-        if kind == 'hop':                                         # a cube tumbles a full quarter turn
+        if kind == 'hop' or not HAS_MODEL:                        # a box tumbles a quarter turn over its centre
             piece.position = c0 + (c1 - c0) * e + Vec3(0, arc, 0)
             piece.rotation_z, piece.rotation_x = 90 * wd.x * e, 90 * wd.z * e
             return
@@ -280,7 +282,7 @@ class CharBlock:
         return self.roll is not None
 
 
-if ch.available():
+if USE_CHARACTER and ch.available():
     Block = CharBlock                                                    # noqa: F811
 
 
@@ -440,5 +442,5 @@ class ActorBlock:
         return self.roll is not None
 
 
-if (ACTOR_DIR / 'player.glb').exists():
+if USE_CHARACTER and (ACTOR_DIR / 'player.glb').exists():
     Block = ActorBlock                                                   # noqa: F811

@@ -36,9 +36,8 @@ The assignment explicitly allows recreating classic levels.
 - Tower `Source/assets/models/tower.glb`: modelled by script in Blender (`tools/blender_tower.py`).
 - Intro scenery images (SDXL via ComfyUI, seeds 701-708): painted mountain panorama `backdrop_a.png`, cloud sprite,
   concrete wall, grass, lit / dark window textures in `Source/assets/textures/`, processed by `tools/process_env.py`.
-- Player character (animated): "Trash Can" by [Mattt_L](https://mattt-l.itch.io/trash-can), CC BY-NC-SA.
-  `Source/assets/models/player_actor/` is our derivative (stances baked by IK, run cycle resampled,
-  `tools/blender_player_actor.py`), under the same licence; see the LICENSE.txt there.
+- (Experimental, not shipped) animated player from "Trash Can" by [Mattt_L](https://mattt-l.itch.io/trash-can),
+  CC BY-NC-SA, built locally with `tools/blender_player_actor.py`; the game currently uses the blue block.
 - Fallback player `Source/assets/models/player_can.glb`: trash can modelled by script in Blender
   (`tools/blender_trashcan.py`); face sticker and galvanised metal texture generated with SDXL (seeds 801, 803).
 - Rooftop equipment, path tiles, stairwell, block and the intro city are built from primitives in code;
