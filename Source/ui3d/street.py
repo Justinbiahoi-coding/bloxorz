@@ -1,10 +1,10 @@
-"""The ruined city and the street in front of the tower, used by the opening cutscene (daytime).
+"""The ruined city around the tower, used by the opening cutscene (daytime, after the Zombie Barricades trailer).
 
-The street runs along -z away from the tower's entrance. Its far end is a checkpoint gate (two guard towers,
-wire fences, a few of the dead on watch); both sides are lined with the coloured ruins from Zombie Barricades
-(models/zb, used with the author's permission, see docs/CREDITS.md), with burnt cars and barricades on the
-road. ``_city`` spreads more blocks, autumn trees and a helipad out beyond for the aerial shot. Everything is
-parented to one entity so the cutscene can throw it away in one call.
+One avenue runs along -z from the tower's entrance, with a checkpoint gate at its far end. A grid of cross
+streets and city blocks spreads out on both sides: each block is a pavement slab ringed by rows of the game's
+own buildings facing the street (models/zb, used with the author's permission, see docs/CREDITS.md), with a
+green courtyard of autumn trees inside. Crosswalks, litter, burnt cars and barricades dress the roads.
+Everything is parented to one entity so the cutscene can throw it away in one call.
 """
 import math
 import random
@@ -15,16 +15,26 @@ from .floor import BOX, CYL, glow, prop, tex
 from .world import ASSETS
 
 ZB = ASSETS / 'models' / 'zb'
-S = 1.7                                                     # the pack's buildings are small next to our cells
-SIDE = ('SA_Bld_OfficeBlue_03', 'SA_Bld_TownHouseLarge_01', 'SA_Bld_OfficeWhite_02', 'SA_Bld_Apartment_Damaged_01',
-        'SA_Bld_ShopOld_Damaged_01', 'SA_Bld_Office_Damaged_01', 'SA_Bld_OfficeBlue_04', 'SA_Bld_TownHouse_01',
-        'SA_Bld_HospitalBuilding_Damaged_01', 'SA_Bld_OfficeWhite_03', 'SA_Bld_Church_Damaged_01')
+G = 1.15                                                    # building scale
+# (mesh, width along the facade, depth): measured from the converted models
+BUILDINGS = (('SA_Bld_TownHouse_01', 3.9, 7.6), ('SA_Bld_TownHouse_02', 3.9, 7.6), ('SA_Bld_TownHouseLarge_01', 7.7, 7.6),
+             ('SA_Bld_OfficeBlue_03', 5.8, 6.4), ('SA_Bld_OfficeBlue_02', 5.8, 6.4), ('SA_Bld_OfficeWhite_02', 5.8, 6.4),
+             ('SA_Bld_OfficeWhite_03', 5.8, 6.4), ('SA_Bld_OfficeGrey_02', 5.8, 6.4), ('SA_Bld_Apartment_Damaged_01', 6.2, 6.2),
+             ('SA_Bld_Shop_Damaged_01', 6.9, 6.8), ('SA_Bld_ShopOld_Damaged_01', 9.7, 5.9), ('SA_Bld_ShopSmall_01', 5.8, 5.4),
+             ('SA_Bld_Office_Damaged_01', 8.3, 8.7), ('SA_Bld_PoliceStation_Damaged_01', 10.2, 6.3),
+             ('SA_Bld_Diner_Damaged_01', 10.2, 4.4), ('SA_Bld_Church_Damaged_01', 5.4, 9.7),
+             ('SA_Bld_TownHall_Damaged_01', 13.9, 9.9), ('SA_Bld_OfficeOld_01', 3.9, 4.7))
+ROWHOUSES = (('SA_Bld_TownHouse_01', 3.9, 7.6), ('SA_Bld_TownHouse_02', 3.9, 7.6))
 CARS = ('SA_Prop_BurntBrown_Car_01', 'SA_Prop_BurntBlack_Van_01', 'SA_Prop_BurntBrown_Bus_01',
-        'SA_Prop_BurntBlack_Ute_01', 'SA_Prop_CarRolled_01', 'SA_Prop_BurntBrown_FamilyCar_01')
+        'SA_Prop_BurntBlack_Ute_01', 'SA_Prop_CarRolled_01', 'SA_Prop_BurntBrown_FamilyCar_01',
+        'SA_Prop_BurntBrown_Ute_01', 'SA_Prop_BurntBlack_FamilyCar_01')
 JUNK = ('SA_Prop_Barrier_01', 'SA_Prop_Dumpster_01', 'SA_Prop_Crate_01', 'SA_Prop_Barrel_01', 'SA_Prop_Barrier_03')
+LITTER = ('SA_Prop_Litter_02', 'SA_Prop_Litter_04', 'SA_Prop_Litter_07')
 TREES = ('Prop_Tree_Apple', 'Prop_Tree_Lemon', 'Prop_Tree_Orange')
 AUTUMN = ((1.0, 0.62, 0.3), (0.95, 0.8, 0.3), (0.78, 0.42, 0.22), (0.6, 0.72, 0.3))
-ROAD, KERB, GRASS = color.rgb(92, 94, 102), color.rgb(176, 172, 160), color.rgb(116, 140, 72)
+ASPHALT, PAVE, GRASS = color.rgb(70, 72, 80), color.rgb(168, 164, 152), color.rgb(112, 138, 70)
+ROAD_W, BLOCK, PAV = 14.0, 40.0, 2.4
+PITCH = BLOCK + ROAD_W
 
 
 def available():
@@ -32,54 +42,100 @@ def available():
 
 
 class Street:
-    """``length`` cells of street reaching out from (cx, 0, z0) towards -z."""
+    """The avenue (``length`` cells from (cx, 0, z0) towards -z) and the city block grid around it."""
 
-    def __init__(self, cx, z0, length=80, width=13):
+    def __init__(self, cx, z0, length=160, width=ROAD_W):
         self.root = Entity()
         self.cx, self.z0, self.length, self.width = cx, z0, length, width
-        self.gate_z = z0 - length + 14
+        self.gate_z = z0 - length + 16
+        self.props, self.block_spots = [], []
         rng = random.Random(21)
-        Sky(parent=self.root)                                                               # the default blue day sky
+        Sky(parent=self.root)                                                                # the default blue day sky
         box_ = lambda *a, **k: Entity(parent=self.root, model=BOX, *a, **k)
-        box_(position=(cx, -0.25, z0 - 40), scale=(520, 0.2, 520), color=GRASS,
-             texture=tex('grass'), texture_scale=(120, 120))                                # the whole county
-        box_(position=(cx, -0.1, z0 - length / 2), scale=(width, 0.2, length), color=ROAD,
-             texture=tex('roof'), texture_scale=(width / 4, length / 4))                    # tarmac
-        for i in range(int(length / 6)):                                                    # centre line
-            glow(self.root, Vec3(cx, 0.02, z0 - 3 - i * 6), (0.22, 0.01, 2.2), color.rgb(236, 214, 130))
-        for side in (-1, 1):                                                                # kerbs and pavements
-            box_(position=(cx + side * (width / 2 + 0.9), 0.1, z0 - length / 2), scale=(2.2, 0.35, length),
-                 color=KERB, texture=tex('concrete'), texture_scale=(1, length / 4))
-        self.props = []
-        for i in range(7):                                                                  # ruins down both sides
-            for side in (-1, 1):
-                z = z0 - 8 - i * 11 - rng.uniform(0, 2)
-                name = SIDE[(i * 2 + (side > 0)) % len(SIDE)]
-                yaw = -90 * side + rng.uniform(-3, 3)                                       # the front faces the road
-                self.props.append(prop(self.root, 'zb/' + name, Vec3(cx + side * (width / 2 + 5 + 5 * S), 0, z),
-                                       yaw, S))
-        for i in range(10):                                                                 # wrecks and junk on the road
-            z = z0 - 20 - rng.uniform(0, length - 34)                                       # keep the near end clear
-            x = cx + rng.uniform(-width / 2 + 1.5, width / 2 - 1.5)
-            prop(self.root, 'zb/' + (CARS if i % 2 == 0 else JUNK)[i // 2 % 5], Vec3(x, 0, z),
-                 rng.uniform(0, 360) if i % 2 else rng.choice((88, 92, 268)), 1.4)
-        for i in range(10):                                                                 # trees along the pavements
-            side = -1 if i % 2 else 1
-            t = prop(self.root, 'zb/' + TREES[i % 3], Vec3(cx + side * (width / 2 + 2.2), 0, z0 - 6 - i * 7.5),
-                     rng.uniform(0, 360), rng.uniform(2.4, 3.2))
-            t.setColorScale(*rng.choice(AUTUMN), 1)
+        box_(position=(cx, -0.3, z0 - length / 2), scale=(900, 0.2, 900), color=ASPHALT,
+             texture=tex('roof'), texture_scale=(220, 220))                                  # asphalt everywhere
         self.fires = []
-        for i, z in enumerate(z0 - 12 - 17 * i for i in range(3)):                          # burning barrels
-            x = cx + (self.width / 2 - 1.0) * (1 if i % 2 else -1)
+        cols = (-2, -1, 1, 2)                                                                # block columns either side
+        rows = int((length - 8) // PITCH) + 1
+        for r in range(-1, rows + 1):
+            zc = z0 - 6 - BLOCK / 2 - r * PITCH
+            for c in cols:
+                xc = cx + (width / 2 + BLOCK / 2) * (1 if c > 0 else -1) + (abs(c) - 1) * PITCH * (1 if c > 0 else -1)
+                self._block(xc, zc, rng, (r + c) % 3 == 0 and abs(c) > 1)
+            zr = zc - BLOCK / 2 - ROAD_W / 2                                                 # cross street centre
+            self._lines(zr)
+        for i in range(int(length / 8)):                                                     # avenue centre line
+            glow(self.root, Vec3(cx, 0.03, z0 - 4 - i * 8), (0.25, 0.01, 3.4), color.rgb(236, 214, 130))
+        self._litter(rng, length)
+        self._avenue(rng)
+        self._gate(rng)
+        self.city = Entity(parent=self.root)
+        pad = self._helipad()
+        self.pad = pad
+        self.bin = self._bin(cx - 2.5, z0 - 26)                                              # the hiding place
+
+    def _block(self, xc, zc, rng, park):
+        """A pavement slab with buildings (or, in a park, trees only) round its rim, courtyard in the middle."""
+        Entity(parent=self.root, model=BOX, position=(xc, 0.1, zc), scale=(BLOCK, 0.4, BLOCK), color=PAVE,
+               texture=tex('concrete'), texture_scale=(BLOCK / 4, BLOCK / 4))
+        Entity(parent=self.root, model=BOX, position=(xc, 0.32, zc), scale=(BLOCK - 2 * PAV - 18, 0.1, BLOCK - 2 * PAV - 18),
+               color=GRASS, texture=tex('grass'), texture_scale=(4, 4))
+        self.block_spots.append((xc, zc))
+        # the four edges: (facing yaw, unit vector along the edge, outward normal)
+        for yaw, ax, az, nx, nz in ((0, 1, 0, 0, -1), (180, -1, 0, 0, 1), (90, 0, 1, 1, 0), (-90, 0, -1, -1, 0)):
+            span, inset, used = BLOCK - 2 * PAV - 5, PAV + 4.2, 0.0
+            if park:
+                continue
+            row = ROWHOUSES if rng.random() < 0.4 else BUILDINGS
+            while True:
+                name, w, d = rng.choice(row)
+                w, d = w * G, d * G
+                if used + w > span:
+                    break
+                s = -span / 2 + used + w / 2                                                 # along the edge
+                off = BLOCK / 2 - inset - (d - 7.0 * G) * 0.0                                # towards the street
+                self.props.append(prop(self.root, 'zb/' + name,
+                                       Vec3(xc + ax * s + nx * (off - d / 2 + 2.2),
+                                            0.3, zc + az * s + nz * (off - d / 2 + 2.2)), yaw, G))
+                used += w + 0.5
+        for _ in range(7 if not park else 18):                                              # courtyard trees
+            t = prop(self.root, 'zb/' + rng.choice(TREES),
+                     Vec3(xc + rng.uniform(-9, 9), 0.3, zc + rng.uniform(-9, 9)) if not park else
+                     Vec3(xc + rng.uniform(-16, 16), 0.3, zc + rng.uniform(-16, 16)),
+                     rng.uniform(0, 360), rng.uniform(2.4, 3.4))
+            t.setColorScale(*rng.choice(AUTUMN), 1)
+
+    def _lines(self, z):
+        """Crosswalk stripes across the avenue and the cross street at one intersection."""
+        cx, w = self.cx, self.width
+        for side in (-1, 1):
+            for i in range(-3, 4):
+                glow(self.root, Vec3(cx + i * 1.8, 0.03, z + side * (ROAD_W / 2 + 0.2)), (0.9, 0.01, 2.2),
+                     color.rgb(238, 238, 230))
+        for i in range(10):                                                                  # cross street centre line
+            for sgn in (-1, 1):
+                glow(self.root, Vec3(cx + sgn * (ROAD_W / 2 + 4 + i * 8), 0.03, z), (3.4, 0.01, 0.25), color.rgb(236, 214, 130))
+
+    def _litter(self, rng, length):
+        for _ in range(170):
+            prop(self.root, 'zb/' + rng.choice(LITTER),
+                 Vec3(self.cx + rng.uniform(-60, 60), 0.04, self.z0 - rng.uniform(0, length)), rng.uniform(0, 360), 4.5)
+
+    def _avenue(self, rng):
+        cx, z0, length, w = self.cx, self.z0, self.length, self.width
+        for i in range(14):                                                                  # wrecks and junk on the road
+            z = z0 - 20 - rng.uniform(0, length - 40)
+            x = cx + rng.uniform(-w / 2 + 2, w / 2 - 2)
+            prop(self.root, 'zb/' + (CARS if i % 2 == 0 else JUNK)[i // 2 % 5], Vec3(x, 0.02, z),
+                 rng.choice((88, 92, 268, 272)) if i % 2 == 0 else rng.uniform(0, 360), 1.5)
+        for i, z in enumerate(z0 - 12 - 22 * i for i in range(5)):                           # burning barrels
+            x = cx + (w / 2 - 1.2) * (1 if i % 2 else -1)
             Entity(parent=self.root, model=CYL, position=(x, 0.35, z), scale=(0.55, 0.7, 0.55),
                    color=color.rgb(120, 70, 50), texture=tex('corrugated'))
             f = glow(self.root, Vec3(x, 0.85, z), (0.5, 0.6, 0.5), color.rgb(255, 150, 60), model='sphere')
             halo = glow(self.root, Vec3(x, 0.9, z), (2.4, 0.02, 2.4), color.rgba(255, 140, 50, 40), model='circle',
                         rotation_x=90)
             self.fires.append((f, halo, random.Random(i).uniform(0, 6)))
-        self._gate(rng)
-        self.city = self._city(rng)
-        self.bin = self._bin(cx - 2.5, z0 - 26)                                             # the hiding place
 
     def _gate(self, rng):
         """The checkpoint: two guard towers either side of the road, wire fences, a bus across half of it."""
@@ -89,54 +145,19 @@ class Street:
             for j in range(1, 6):
                 prop(self.root, 'zb/SA_Prop_Fence_Wire_Full_01', Vec3(cx + side * (w / 2 + 1.0 + j * 2.6), 0, gz - 1.0),
                      90, 1.4)
-        prop(self.root, 'zb/SA_Prop_BurntBrown_Bus_01', Vec3(cx + 2.4, 0, gz + 9), 78, 1.7)
+        prop(self.root, 'zb/SA_Prop_BurntBrown_Bus_01', Vec3(cx + 4.8, 0, gz + 9), 78, 1.7)
         for k in range(4):
             prop(self.root, 'zb/SA_Prop_Barrier_0%d' % (1 + k % 3), Vec3(cx - 3.6 + k * 1.5, 0, gz + 3),
                  rng.uniform(-10, 10), 1.8)
         self.gate_spots = [Vec3(cx - 2.4, 0, gz + 2.0), Vec3(cx + 2.8, 0, gz + 1.2)]
 
-    def _city(self, rng):
-        """Blocks of ruins, trees and a helipad spread around the street, for the aerial shot. They sit on their
-        own entity so the street shots need not pay for them twice."""
-        root = Entity(parent=self.root)
-        cx, z0, w, length = self.cx, self.z0, self.width, self.length
-        placed = []
-        for _ in range(240):
-            if len(placed) >= 34:
-                break
-            ang, r = rng.uniform(0, math.tau), math.sqrt(rng.uniform(0.12, 1)) * 108
-            x, z = cx + math.cos(ang) * r, z0 - 24 + math.sin(ang) * r
-            if abs(x - cx) < w / 2 + 26 and z0 - length - 8 < z < z0 + 8:
-                continue                                           # keep the street and its rows clear
-            if any((x - px) ** 2 + (z - pz) ** 2 < 24 ** 2 for px, pz in placed):
-                continue
-            placed.append((x, z))
-            prop(root, 'zb/' + SIDE[len(placed) % len(SIDE)], Vec3(x, 0, z), rng.choice((0, 90, 180, 270)), S)
-        for _ in range(60):                                        # a wood of autumn trees on the grass
-            ang, r = rng.uniform(0, math.tau), math.sqrt(rng.uniform(0.05, 1)) * 112
-            x, z = cx + math.cos(ang) * r, z0 - 24 + math.sin(ang) * r
-            if abs(x - cx) < w / 2 + 3 and z0 - length - 8 < z < z0 + 8:
-                continue
-            if any((x - px) ** 2 + (z - pz) ** 2 < 12 ** 2 for px, pz in placed):
-                continue
-            t = prop(root, 'zb/' + TREES[int(r) % 3], Vec3(x, 0, z), rng.uniform(0, 360), rng.uniform(2.6, 4.0))
-            t.setColorScale(*rng.choice(AUTUMN), 1)
-        for _ in range(30):                                        # roads full of wreckage
-            ang, r = rng.uniform(0, math.tau), math.sqrt(rng.uniform(0.1, 1)) * 100
-            prop(root, 'zb/' + rng.choice(CARS), Vec3(cx + math.cos(ang) * r, 0, z0 - 24 + math.sin(ang) * r),
-                 rng.uniform(0, 360), 1.5)
-        self.block_spots = placed
-        self.pad = self._helipad(root, placed)
-        return root
-
-    def _helipad(self, root, placed):
-        """A tall office block beside the tower with a helipad on its roof: the aerial shot ends on it (and
-        the helicopter lands there at the end of the game)."""
-        x, z = self.cx + 42, self.z0 - 18
-        placed[:] = [p for p in placed if (p[0] - x) ** 2 + (p[1] - z) ** 2 > 30 ** 2]
-        prop(root, 'zb/SA_Bld_OfficeWhite_03', Vec3(x, 0, z), 90, S)
-        top = 11.4 * S                                             # the model is 11.4 tall before scaling
-        prop(root, 'zb/SA_Bld_HospitalBuildingMain_HeliPad_01', Vec3(x, top, z), 0, 1.9)
+    def _helipad(self):
+        """A tall office block on the second block row with a helipad on its roof: the aerial shot ends on it
+        (and the helicopter lands there at the end of the game)."""
+        x, z = self.cx + (self.width / 2 + BLOCK / 2) + 4, self.z0 - 6 - BLOCK / 2 - PITCH
+        prop(self.root, 'zb/SA_Bld_OfficeWhite_03', Vec3(x, 0.3, z), 90, 1.9)
+        top = 11.4 * 1.9 + 0.3
+        prop(self.root, 'zb/SA_Bld_HospitalBuildingMain_HeliPad_01', Vec3(x, top, z), 0, 1.9)
         return Vec3(x, top, z)
 
     def _bin(self, x, z):

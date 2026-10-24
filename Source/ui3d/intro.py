@@ -71,7 +71,7 @@ class Intro:
         self.sun = sun_np
         sun_np.setPos(self.cx - 60, self.bottom + 70, self.cz + 20)
         sun_np.lookAt(self.cx, self.bottom, self.street.z0 - 30)
-        set_exposure(sun_np, 1.45, 1.5)
+        set_exposure(sun_np, 2.1, 1.9)
 
     # ---- the set ----
     def _world(self):
@@ -194,10 +194,10 @@ class Intro:
                 z = _lerp(self.street.gate_z - 9, self.street.gate_z + 36, u)
                 return (Vec3(_lerp(cx + 1.2, cx - 1.6, u), b + _lerp(3.4, 1.7, u), z),
                         Vec3(cx - 0.4, b + _lerp(2.6, 2.0, u), z + 16))
-            u = (k - 0.5) * 2   # high and oblique over the trees and roofs, ending on the rooftop helipad
+            u = (k - 0.5) * 2   # high and oblique over the city blocks, ending on the rooftop helipad
             pad = self.street.pad
-            return (Vec3(_lerp(cx - 46, cx + 4, u), b + _lerp(54, 46, u), _lerp(z0 - 78, z0 - 54, u)),
-                    Vec3(_lerp(cx - 8, pad.x, u), _lerp(b + 2, pad.y, u), _lerp(z0 - 46, pad.z, u)))
+            return (Vec3(_lerp(cx - 36, cx + 6, u), b + _lerp(44, 36, u), _lerp(z0 - 26, z0 - 56, u)),
+                    Vec3(_lerp(cx, pad.x, u), _lerp(b + 2, pad.y, u), _lerp(z0 - 58, pad.z, u)))
         if i == 1:      # down the street, the runner coming at us, ruins either side
             return (Vec3(cx + 5.2, b + 2.3, _lerp(z0 - 12, z0 - 17, k)),
                     Vec3(bin_pos.x + 2.5, b + 1.2, _lerp(z0 - 31, bin_pos.z - 3, k)))

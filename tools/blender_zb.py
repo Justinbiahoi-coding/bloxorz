@@ -2,6 +2,7 @@
 
     Blender -b -P tools/blender_zb.py -- SRCDIR OUTDIR [SCALE]
 
+With a trailing `pivot` argument the origin is kept (for models placed by tools/unity_scene.py).
 Each SRCDIR/<name>.obj gets SRCDIR/<texture>.png (named in index.json) as a crisp, matte palette material,
 is scaled by SCALE (metres -> our cells, default 0.42 like blender_apoc.py), centred on x/z with its feet at
 y=0, and written to OUTDIR/<name>.glb. UnityPy's OBJ export already matches Blender's handedness, so no mirroring.
@@ -15,6 +16,7 @@ from mathutils import Vector
 
 SRC, OUT, *rest = sys.argv[sys.argv.index('--') + 1:]
 SCALE = float(rest[0]) if rest else 0.42
+KEEP = 'pivot' in rest                      # keep the model's own origin so scene placements line up
 os.makedirs(OUT, exist_ok=True)
 index = json.load(open(os.path.join(SRC, 'index.json')))
 
@@ -47,7 +49,7 @@ for name, tex in sorted(index.items()):
     pts = [obj.matrix_world @ Vector(c) for c in obj.bound_box]
     lo = Vector([min(p[i] for p in pts) for i in range(3)])
     hi = Vector([max(p[i] for p in pts) for i in range(3)])
-    obj.location = Vector((-(lo.x + hi.x) / 2, -(lo.y + hi.y) / 2, -lo.z)) * SCALE
+    obj.location = Vector((0, 0, 0)) if KEEP else Vector((-(lo.x + hi.x) / 2, -(lo.y + hi.y) / 2, -lo.z)) * SCALE
     obj.scale = (SCALE, SCALE, SCALE)
     bpy.ops.object.transform_apply(location=True, scale=True)
     print('CONVERTED', name, tuple(round(v, 1) for v in (hi - lo) * SCALE))
