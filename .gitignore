@@ -8,4 +8,3 @@ results/
 # intermediate exports of the character (the animated one in player_actor/ is what the game uses)
 Source/assets/models/player.glb
 Source/assets/models/player_parts/
-Source/assets/models/zombie/

@@ -50,5 +50,5 @@ The assignment explicitly allows recreating classic levels.
   see `docs/permissions/` if it was added. The raw installer and extracted data are not in this repository.
 - Apocalyptic buildings `models/apoc/`: [Majadroid Low Poly Apocalyptic Buildings](https://majadroid.itch.io/) (CC0),
   converted by `tools/blender_apoc.py`.
-- Voxel zombies `models/zombie/`: split into rigid parts by `tools/blender_zombie.py`; source pack provided by the team
-  (`Package/`, licence to be confirmed before publishing).
+- Voxel zombies `models/zombie/`: split into rigid parts by `tools/blender_zombie.py`; free voxel zombie pack downloaded from itch.io
+  (author and link: TODO, the pack ships without a readme; fill in before submission).
