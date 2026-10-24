@@ -1,5 +1,6 @@
-"""Tower mode in 3D: floors stacked in one building; win a floor, the block drops down the stairwell and
-the camera follows it to the floor below. Arrows roll, Space swaps split cubes, R restarts the floor,
+"""Tower mode in 3D: the climb starts in the lobby and ends on the roof. Win a floor by standing in its
+elevator: the doors close, the car rides up with the camera, and the next floor opens around its arrival
+elevator. Arrows roll, Space swaps split cubes, R restarts the floor,
 Esc quits."""
 import math
 
@@ -7,7 +8,6 @@ from ursina import Entity, Text, Vec3, application, camera, color, held_keys, ti
 
 from engine import Tower
 from engine.problem import DIRS
-from ui.hud import floor_name
 
 from .block import Block
 from .floor import Floor
@@ -15,8 +15,17 @@ from .intro import Intro
 from .world import FLOOR_H, aim_sun, move_lantern, point_camera
 
 KEYS = {'left arrow': 'LEFT', 'right arrow': 'RIGHT', 'up arrow': 'DOWN', 'down arrow': 'UP'}
-ROLL_S, FALL_S, DESCEND_S = 0.17, 0.45, 1.4
-SKY = [(22, 28, 58), (20, 25, 52), (18, 22, 46), (16, 20, 40), (14, 17, 34)]   # night, roof .. lobby
+ROLL_S, DOORS_S, RIDE_S = 0.17, 0.6, 1.6
+SKY = [(14, 17, 34), (16, 20, 40), (18, 22, 46), (20, 25, 52), (22, 28, 58)]   # night, lobby .. roof
+
+
+def floor_name(index, count):
+    """Bottom-up: LOBBY, FLOOR 1 .. FLOOR n, ROOFTOP."""
+    if index == 0:
+        return 'LOBBY'
+    if index == count - 1:
+        return 'ROOFTOP'
+    return 'FLOOR {}'.format(index)
 
 
 def _ease(t):
@@ -50,6 +59,14 @@ class TowerGame(Entity):
         self.intro = Intro(self.floor, self.tower.count, *self._camera_for(self.floor))
         self.phase = 'intro'
         self._show_hud(False)
+        self._show_floor(False)                              # the lobby sits inside the intro's tower
+
+    def _show_floor(self, on):
+        self.floor.root.enabled = on
+        for e in self.block.pieces:
+            e.enabled = on
+        for c in getattr(self.block, 'chars', []):
+            c['shadow'].enabled = on
 
     # ---- helpers ----
     def _place_block(self):
@@ -124,7 +141,7 @@ class TowerGame(Entity):
 
     def _after_move(self):
         if self.tower.session.won:
-            self.phase, self.t = 'fall', 0.0
+            self.phase, self.t = 'close', 0.0
 
     # ---- per frame ----
     def update(self):
@@ -146,6 +163,7 @@ class TowerGame(Entity):
             self.intro.step(dt)
             if self.intro.done:
                 self.intro.destroy()
+                self._show_floor(True)
                 self._aim(self.floor)
                 self._show_hud(True)
                 self.phase = 'play'
@@ -160,25 +178,29 @@ class TowerGame(Entity):
                 if self.queued and self.phase == 'play':     # a key pressed mid-move plays right after
                     key, self.queued = self.queued, None
                     self.input(key)
-        elif self.phase == 'fall':                                  # down the stairwell
-            self.t += dt / FALL_S
-            for e in self.block.pieces:
-                e.y -= dt * 3.2
-                e.scale *= 0.985
+        elif self.phase == 'close':                                 # standing in the elevator: doors close
+            self.t += dt / DOORS_S
+            if self.floor.lift:
+                self.floor.lift.set_open(1 - _ease(min(1.0, self.t)))
             if self.t >= 1:
-                self.block.clear()
                 if self.tower.is_last:
                     self.phase = 'done'
-                    self.banner.text = 'Ground floor!\n{} floors, {} moves'.format(
+                    self.banner.text = 'You made it to the roof!\n{} floors, {} moves'.format(
                         self.tower.count, self.tower.total_moves + self.tower.session.moves)
-                else:
-                    self.tower.descend()
-                    self.next_floor = Floor(self.tower.session, self.tower.index, self.tower.count)
-                    self.cam_from = (camera.position, self._camera_for(self.floor)[1])
-                    self.phase, self.t = 'descend', 0.0
-        elif self.phase == 'descend':                               # the camera follows to the floor below
-            self.t += dt / DESCEND_S
+                    return
+                for c in getattr(self.block, 'chars', []):
+                    c['shadow'].enabled = False
+                self.ride = [(e, e.y) for e in self.block.pieces] + [(self.floor.lift.root, self.floor.lift.root.y)]
+                self.tower.descend()                                # (Tower.descend = next level)
+                self.next_floor = Floor(self.tower.session, self.tower.index, self.tower.count)
+                self.cam_from = (camera.position, self._camera_for(self.floor)[1])
+                self.phase, self.t = 'ride', 0.0
+        elif self.phase == 'ride':                                  # the car and the camera go up a storey
+            self.t += dt / RIDE_S
             k = _ease(min(1.0, self.t))
+            rise = (self.next_floor.base - self.floor.base) * k
+            for e, y0 in self.ride:
+                e.y = y0 + rise
             pos, target = self._camera_for(self.next_floor)
             start_pos, start_target = self.cam_from
             camera.position = start_pos + (pos - start_pos) * k
@@ -188,5 +210,11 @@ class TowerGame(Entity):
                 self.floor, self.next_floor = self.next_floor, None
                 self._aim(self.floor)
                 self._place_block()
-                self.phase = 'play'
+                self.phase, self.t = 'open', 0.0
                 self._hud()
+        elif self.phase == 'open':                                  # arrival doors slide open
+            self.t += dt / DOORS_S
+            if self.floor.arrival:
+                self.floor.arrival.set_open(_ease(min(1.0, self.t)))
+            if self.t >= 1:
+                self.phase = 'play'

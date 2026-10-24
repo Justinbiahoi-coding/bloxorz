@@ -49,7 +49,7 @@ MAT = {
     'frame': material('frame', (0.10, 0.10, 0.12)),
     'glass': material('glass', (0.05, 0.07, 0.12), image='window_dark.png', rough=0.3),
     'lit': material('lit', (1.0, 0.84, 0.47), image='window_lit.png', emit=0.8),
-    'door': material('door', (1.0, 0.78, 0.45), emit=1.2),
+    'door': material('door', (0.9, 0.6, 0.28), emit=0.45),
 }
 parts = {k: [] for k in MAT}
 
@@ -98,9 +98,14 @@ for s in range(STOREYS):
             sx_, sy_ = (0.18, ww + 0.22) if nx else (ww + 0.22, 0.18)
             box('band', px + nx * 0.06, py + ny * 0.06, zc - wh / 2 - 0.07, sx_, sy_, 0.08)  # sill
 
-box('door', 0, -D / 2 - 0.03, 1.1, 2.4, 0.06, 1.9)                # lit entrance and canopy (front, -Y)
-box('frame', 0, -D / 2 - 0.06, 1.1, 0.08, 0.08, 1.9)
-box('band', 0, -D / 2 - 0.75, 2.25, 3.4, 1.5, 0.14)
+F = -D / 2 - 0.25                                                    # front face of the plinth
+box('door', 0, F - 0.02, 1.0, 2.4, 0.04, 1.8)                       # lit glass entrance (front, -Y)
+for x in (-1.25, 0, 1.25):                                          # its frame and mullion
+    box('frame', x, F - 0.05, 1.0, 0.1, 0.08, 1.85)
+box('frame', 0, F - 0.05, 1.95, 2.6, 0.08, 0.1)
+box('band', 0, F - 0.75, 2.3, 3.6, 1.5, 0.14)                       # canopy
+for x in (-1.6, 1.6):                                               # canopy posts
+    box('frame', x, F - 1.4, 1.15, 0.08, 0.08, 2.3)
 
 for kind, objs in parts.items():                                    # one mesh per material
     if not objs:

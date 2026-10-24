@@ -3,7 +3,8 @@
   1. wide shot from a meadow: pine forest, moonlit mountains, the slender tower far away; slow push in
   2. closer: the tower fills the frame
   3. low angle at the foot of the tower, looking up its corner into the stars
-  4. high corner shot above the roof with the moon behind; the title and an "Enter Building" prompt
+  4. in front of the lit entrance at street level; the title and an "Enter Building" prompt
+     (the climb starts in the lobby and ends on the roof)
 
 Shots are joined by short fades to black. Any key skips to the title; Enter (or any key) at the title
 goes into the game. Everything is built from primitives and code-drawn textures.
@@ -29,11 +30,11 @@ def _lerp(a, b, k):
 
 
 class Intro:
-    def __init__(self, roof, count, end_pos, end_target):
-        fx0, fy0, fx1, fy1 = self.fp = roof.fp
+    def __init__(self, lobby, count, end_pos, end_target):
+        fx0, fy0, fx1, fy1 = self.fp = lobby.fp
         self.cx, self.cz = (fx0 + fx1) / 2, -(fy0 + fy1) / 2
         self.w, self.d = fx1 - fx0 + 2.2, fy1 - fy0 + 2.2
-        self.top, self.bottom = roof.base - 0.3, floor_y(count) - 3
+        self.top, self.bottom = floor_y(count - 1) - 0.3, floor_y(0) - 3
         self.end_pos, self.end_target = end_pos, end_target
         self.root = Entity()
         self._world()
@@ -84,7 +85,8 @@ class Intro:
                rotation_y=-7, color=color.rgb(96, 74, 56))                       # dirt path to the tower
         h = self.top - b
         if (ASSETS / 'models' / 'tower.glb').exists():                          # modelled in Blender
-            prop(self.root, 'tower', Vec3(cx, b, cz), 0, 1)                      # (tools/blender_tower.py)
+            tw = prop(self.root, 'tower', Vec3(cx, b, cz), 0, 1)               # (tools/blender_tower.py)
+            tw.scale_y = h / 62.7                                                # entrance turned to the camera
         else:
             Entity(parent=land, model='cube', position=(cx, b + h / 2, cz), scale=(self.w, h, self.d),
                    texture='textures/facade', texture_scale=(self.w / 2.5, h / 2.5))
@@ -172,8 +174,8 @@ class Intro:
         if i == 2:      # foot of the tower, looking up the corner
             return (Vec3(cx + w / 2 + 3.5, b + 1.2 + 4 * k, cz - d / 2 - 3.5),
                     Vec3(cx + w / 2 - 1, _lerp(b + 30, top + 10, k), cz - d / 2 + 1))
-        return (Vec3(_lerp(cx - w * 1.4, cx - w * 1.2, k), top + w * 0.95, cz - d * 1.5),   # above the roof
-                Vec3(cx, top - 2, cz + 2))
+        return (Vec3(cx + _lerp(6, 3, k), b + 1.6, _lerp(cz - d / 2 - 24, cz - d / 2 - 18, k)),   # the entrance
+                Vec3(cx, b + 4.2, cz))
 
     def skip_or_enter(self):
         if self.t < sum(SHOTS):

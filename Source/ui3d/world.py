@@ -1,7 +1,7 @@
 """3D world plumbing shared by the 3D front-end: window setup, lights, model loading, coordinates.
 
 Engine cell (x, y) sits at world (x, 0, -y): engine rows grow towards the camera's south.
-Floors are stacked: floor i of the tower has its ground at height floor_y(i).
+Floors are stacked bottom-up: floor 0 is the lobby, the last one the rooftop; floor i stands at floor_y(i).
 """
 from functools import lru_cache
 from pathlib import Path
@@ -20,7 +20,7 @@ def configure():
 
 
 def floor_y(index):
-    return -index * FLOOR_H
+    return index * FLOOR_H
 
 
 def cell_pos(x, y, base_y=0.0, h=0.0):

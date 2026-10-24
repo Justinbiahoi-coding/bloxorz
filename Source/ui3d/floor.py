@@ -47,7 +47,7 @@ class Floor:
     def __init__(self, session, index, count):
         self.session, self.index, self.count = session, index, count
         self.base = floor_y(index)
-        self.roof = index == 0
+        self.roof = index == count - 1                       # the climb ends on the rooftop
         self.root = Entity()
         self.rng = random.Random(1000 + session.level.level)
         kinds = session.level.kinds
@@ -63,6 +63,18 @@ class Floor:
             self._room()
             self._furnish()
         self.refresh()
+        lv = session.level                                      # elevators: one to leave, one we arrived in
+        self.lift = None if self.roof else Lift(self.root, self.at(*lv.end), self._door_yaw(lv.end), True)
+        self.arrival = Lift(self.root, self.at(*lv.start), self._door_yaw(lv.start), False) if index > 0 else None
+
+    def _door_yaw(self, cell):
+        """Doors face a neighbouring path cell (preferring the camera's side), so the block walks straight in."""
+        from .character import yaw_for
+        kinds = self.session.level.kinds
+        for dx, dy in ((0, 1), (1, 0), (-1, 0), (0, -1)):        # engine y grows towards the camera
+            if (cell[0] + dx, cell[1] + dy) in kinds:
+                return yaw_for(dx, -dy)
+        return yaw_for(0, -1)
 
     # ---- geometry helpers ----
     def at(self, x, y, h=0.0):
@@ -232,17 +244,12 @@ class Floor:
                            color=color.rgb(60, 60, 66))
                 continue
             top = self.at(x, y, TILE_TOP + 0.005)
-            if kind == 'goal':                                   # stairwell down, lit from inside, arrow above
-                box(self.tiles, self.at(x, y, -0.5), (0.96, 1.0, 0.96), color.rgb(30, 26, 24))
-                for i in range(6):
-                    box(self.tiles, self.at(x, y - 0.4 + i * 0.16, -0.02 - i * 0.13), (0.84, 0.1, 0.17),
-                        color.rgb(235 - i * 22, 214 - i * 22, 176 - i * 20), tex('oak'))
-                glow(self.tiles, self.at(x, y, -0.7), (0.8, 0.02, 0.8), color.rgb(255, 196, 110))
-                for dx in (-0.47, 0.47):
-                    box(self.tiles, self.at(x + dx, y, 0.32), (0.05, 0.05, 0.96), color.rgb(196, 150, 70))
-                    for dy in (-0.44, 0.44):
-                        Entity(parent=self.tiles, model=CYL, position=self.at(x + dx, y + dy, 0.16),
-                               scale=(0.05, 0.32, 0.05), color=color.rgb(196, 150, 70))
+            if kind == 'goal' and self.roof:                     # end of the climb: a lit helipad
+                box(self.tiles, p, (0.96, TILE_TOP, 0.96), color.rgb(60, 64, 76))
+                glow(self.tiles, top, (0.86, 0.01, 0.86), color.rgb(255, 205, 90), model='circle', rotation_x=90)
+                for dx in (-0.17, 0.17):
+                    glow(self.tiles, top + Vec3(dx, 0.01, 0), (0.07, 0.01, 0.42), color.rgb(40, 40, 48))
+                glow(self.tiles, top + Vec3(0, 0.01, 0), (0.34, 0.01, 0.07), color.rgb(40, 40, 48))
                 self.arrow = glow(self.tiles, self.at(x, y, 1.6), (0.36, 0.45, 0.36), color.rgb(255, 205, 90),
                                   model=Cone(4), rotation_x=180)
                 continue
@@ -262,10 +269,41 @@ class Floor:
                     box(self.tiles, top + Vec3(dx, 0, 0), (0.08, 0.03, 0.55), color.rgb(150, 80, 200))
 
     def animate(self, t):
-        """Per frame: bob and spin the goal arrow."""
+        """Per frame: bob and spin the goal arrow, blink the elevator's up arrow."""
+        if self.lift:
+            self.lift.arrow.color = color.rgb(255, 205, 90) if int(t * 2) % 2 else color.rgb(120, 90, 40)
         if self.arrow:
             self.arrow.y = self.base + 1.55 + 0.12 * math.sin(t * 3)
             self.arrow.rotation_y = t * 90
 
     def destroy(self):
         destroy(self.root)
+
+
+class Lift:
+    """An elevator car standing on one cell: walls on three sides, two sliding doors on the side facing
+    ``yaw`` (local -z) and a header with an up arrow. ``set_open(0..1)`` slides the doors."""
+    H = 2.3
+
+    def __init__(self, parent, pos, yaw, opened):
+        self.root = Entity(parent=parent, position=pos, rotation_y=yaw)
+        steel, dark = color.rgb(170, 176, 188), color.rgb(58, 60, 70)
+        H, t = self.H, 0.06
+        box(self.root, Vec3(0, TILE_TOP / 2, 0), (0.98, TILE_TOP, 0.98), color.rgb(110, 112, 122), tex('steel'))
+        box(self.root, Vec3(0, H / 2, 0.47), (0.98, H, t), steel, tex('steel'))          # back wall
+        for sx in (-0.47, 0.47):                                                          # side walls
+            box(self.root, Vec3(sx, H / 2, 0), (t, H, 0.98), steel, tex('steel'))
+        for sx in (-0.5, 0.5):                                                            # door frame
+            box(self.root, Vec3(sx, H / 2, -0.5), (0.08, H, 0.08), dark)
+        box(self.root, Vec3(0, H + 0.13, -0.47), (1.06, 0.26, 0.12), dark)               # header
+        self.arrow = glow(self.root, Vec3(0, H + 0.13, -0.55), (0.14, 0.16, 0.02), color.rgb(255, 205, 90),
+                          model=Cone(3))
+        glow(self.root, Vec3(0, H - 0.05, 0), (0.6, 0.02, 0.6), color.rgb(255, 236, 200))  # ceiling light
+        self.doors = [box(self.root, Vec3(0, H / 2, -0.53), (0.47, H - 0.06, 0.04), color.rgb(200, 205, 214),
+                          tex('steel')) for _ in range(2)]
+        self.set_open(1.0 if opened else 0.0)
+
+    def set_open(self, k):
+        for i, d in enumerate(self.doors):
+            side = -1 if i == 0 else 1
+            d.x = side * (0.24 + 0.47 * k)
