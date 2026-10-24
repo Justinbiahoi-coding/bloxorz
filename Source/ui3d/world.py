@@ -46,8 +46,19 @@ def lights(render):
     lamp_np = render.attachNewNode(lamp)
     render.setLight(lamp_np)
     sun_np.setPythonTag('lantern', lamp_np)
+    sun_np.setPythonTag('ambient', render.find('**/fill'))
+    sun_np.setPythonTag('levels', (sun.getColor(), amb.getColor()))
     render.setShaderAuto()
     return sun_np
+
+
+def set_exposure(sun_np, key=1.0, fill=1.0):
+    """Scale the moon and the fill light; the cutscene runs brighter than the lit floors."""
+    sun, amb = sun_np.getPythonTag('levels')
+    sun_np.node().setColor(sun * key)
+    amb_np = sun_np.getPythonTag('ambient')
+    if not amb_np.isEmpty():
+        amb_np.node().setColor(amb * fill)
 
 
 def aim_sun(sun_np, target):

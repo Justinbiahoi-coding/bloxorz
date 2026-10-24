@@ -57,6 +57,7 @@ class TowerGame(Entity):
                             scale=(0.5, 0.17), position=window.top_left + Vec3(0.27, -0.095, 0))
         self._hud()
         self.intro = Intro(self.floor, self.tower.count, *self._camera_for(self.floor))
+        self.intro.light(self.sun)
         self.phase = 'intro'
         self._show_hud(False)
         self._show_floor(False)                              # the lobby sits inside the intro's tower
