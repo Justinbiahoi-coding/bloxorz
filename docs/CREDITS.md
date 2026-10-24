@@ -43,3 +43,12 @@ The assignment explicitly allows recreating classic levels.
   (`tools/blender_trashcan.py`); face sticker and galvanised metal texture generated with SDXL (seeds 801, 803).
 - Rooftop equipment, path tiles, stairwell, block and the intro city are built from primitives in code;
   `assets/textures/facade.png` is drawn by code (pygame).
+- Opening city and street (`Source/assets/models/zb/`): meshes and palette textures from **Zombie Barricades**
+  by Barricade Entertainment (Jimbob), extracted from the game's data with `tools/unity_extract.py` and converted
+  by `tools/blender_zb.py`. Used with the author's permission, who said we may use all of their assets (Synty-style
+  `SA_*` buildings, props and vehicles, and the `Prop_*` farm set). The written permission is kept by the team;
+  see `docs/permissions/` if it was added. The raw installer and extracted data are not in this repository.
+- Apocalyptic buildings `models/apoc/`: [Majadroid Low Poly Apocalyptic Buildings](https://majadroid.itch.io/) (CC0),
+  converted by `tools/blender_apoc.py`.
+- Voxel zombies `models/zombie/`: split into rigid parts by `tools/blender_zombie.py`; source pack provided by the team
+  (`Package/`, licence to be confirmed before publishing).
