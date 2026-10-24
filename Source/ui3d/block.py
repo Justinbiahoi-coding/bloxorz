@@ -22,8 +22,8 @@ ACTIVE = color.rgb(255, 150, 40)
 # models/player.glb (a downloaded character, kept out of git until its licence is known) wins over
 # models/player_can.glb (our own Blender trash can)
 MODEL = next((n for n in ('player', 'player_can') if (ASSETS / 'models' / (n + '.glb')).exists()), None)
-# The characters are switched off for now: the player is the plain blue block.
-USE_CHARACTER = False
+# Set to False to play as the plain blue block instead of the trash-can character.
+USE_CHARACTER = True
 HAS_MODEL = USE_CHARACTER and MODEL is not None
 
 # per kind of move: duration (s), arc height (cells), landing squash
