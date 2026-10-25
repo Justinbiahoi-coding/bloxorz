@@ -21,7 +21,7 @@ from .world import ASSETS, floor_y, point_camera, set_exposure
 from .zombie import Horde, Zombie, available as zombies_available
 
 #      city   chase  hide   dash   title
-SHOTS = (10.0, 5.0, 4.6, 4.4, 3.0)
+SHOTS = (10.0, 5.0, 4.6, 4.4, 4.2)
 FADE = 0.4
 SKY = (150, 196, 236)
 LINES = ("The city fell in a single day.",
@@ -175,14 +175,16 @@ class Intro:
                                                  _lerp(bin_pos.z, self.door.z - 1.4, _ease(k)))
                 self.hero_holder.rotation_y = 180                  # running away from the camera, towards the doors
             self.horde.update(dt, self.hero_holder.position if self.hero else None, speed=2.6, stop_at=2.4)
-        else:                                                      # at the doors; they are closing in
+        else:                                                      # through the doors: the survivor runs into the lobby
             self.street.bin.enabled = False
             if self.hero:
-                self.hero_holder.enabled = True
-                self.hero_holder.position = Vec3(self.door.x, b, self.door.z - 1.4)
+                run = _ease(min(1.0, k / 0.7))
+                self.hero_holder.enabled = k < 0.8                     # gone once inside
+                self.hero_holder.position = Vec3(self.door.x, b, _lerp(self.door.z - 1.4, self.cz + 3.0, run))
                 self.hero_holder.rotation_y = 180
             self.horde.set_lunge(min(1.0, k * 1.6))
-            self.horde.update(dt, self.hero_holder.position if self.hero else None, speed=1.9, stop_at=3.2)
+            self.horde.update(dt, self.hero_holder.position if self.hero else None, speed=1.9,
+                              stop_at=3.2 + 3.0 * k)                   # they pile up at the door
 
     # ---- the camera ----
     def _shot(self, i, k):
