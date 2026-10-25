@@ -21,7 +21,9 @@ from .world import ASSETS
 ACTIVE = color.rgb(255, 150, 40)
 # models/player.glb (a downloaded character, kept out of git until its licence is known) wins over
 # models/player_can.glb (our own Blender trash can)
-MODEL = next((n for n in ('player', 'player_can') if (ASSETS / 'models' / (n + '.glb')).exists()), None)
+# models/bin/bin_block.glb (the street bin stretched to the 1 x 1 x 2 block) wins over both
+MODEL = next((n for n in ('bin/bin_block', 'player', 'player_can') if (ASSETS / 'models' / (n + '.glb')).exists()), None)
+BIN = MODEL == 'bin/bin_block'
 # Set to False to play as the plain blue block instead of the trash-can character.
 USE_CHARACTER = True
 HAS_MODEL = USE_CHARACTER and MODEL is not None
@@ -282,7 +284,7 @@ class CharBlock:
         return self.roll is not None
 
 
-if USE_CHARACTER and ch.available():
+if USE_CHARACTER and not BIN and ch.available():
     Block = CharBlock                                                    # noqa: F811
 
 
@@ -442,5 +444,5 @@ class ActorBlock:
         return self.roll is not None
 
 
-if USE_CHARACTER and (ACTOR_DIR / 'player.glb').exists():
+if USE_CHARACTER and not BIN and (ACTOR_DIR / 'player.glb').exists():
     Block = ActorBlock                                                   # noqa: F811
