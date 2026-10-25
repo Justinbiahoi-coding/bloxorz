@@ -95,12 +95,15 @@ class Horde:
     def alarm(self, point, radius):
         """Anyone within ``radius`` of ``point`` (the cat running by) turns and starts after it."""
         for z in self.members:
-            if z not in self.alert and math.hypot(z.root.x - point.x, z.root.z - point.z) < radius:
+            if z not in self.alert and z.root.z < point.z - 1.0 and math.hypot(z.root.x - point.x, z.root.z - point.z) < radius:   # only once the cat is past them
                 self.alert.add(z)
 
-    def run(self, dt, point, speed=2.2, stop_at=2.5):
+    def run(self, dt, point, speed=2.2, stop_at=1.0, gap=6.0):
+        """Chase a point ``gap`` behind the cat (the cat runs towards +z) and never get nearer than that."""
+        goal = Vec3(point.x, point.y, point.z - gap)
         for z in self.alert:
-            z.pose(self.t * 2.4, z.walk_to(point, dt, speed) > stop_at)
+            moving = z.root.z < goal.z and z.walk_to(goal, dt, speed) > stop_at
+            z.pose(self.t * 2.4, moving)
 
     def set_lunge(self, k):
         for z in self.members:

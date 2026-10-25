@@ -221,7 +221,7 @@ class Intro:
                 cat.root.position = Vec3(x, b + st.bin_r * 2, z)
                 cat.root.rotation_y = 180                          # running towards the doors, on top
                 cat.pose(self.t * 3.2, True)
-            self.horde.update(dt, cat.root.position if cat else None, speed=2.6, stop_at=2.4)
+            self.horde.update(dt, cat.root.position if cat else None, speed=2.6, stop_at=7.0)
         else:                                                      # through the doors: the bin rolls into the lobby
             cat, st = self.figure, self.street
             run = _ease(min(1.0, k / 0.7))
@@ -237,7 +237,7 @@ class Intro:
                 cat.pose(self.t * 3.2, True)
             self.horde.set_lunge(min(1.0, k * 1.6))
             self.horde.update(dt, cat.root.position if cat else None, speed=1.9,
-                              stop_at=3.2 + 3.0 * k)                   # they pile up at the door
+                              stop_at=7.0 + 3.0 * k)                   # they pile up at the door
 
     # ---- the camera ----
     def _shot(self, i, k):
