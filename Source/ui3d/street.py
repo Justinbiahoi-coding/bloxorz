@@ -176,6 +176,7 @@ class Street:
         spots = [(cx + rng.uniform(-10, 10), z0 - 20 - rng.uniform(0, length - 30)) for _ in range(6)]       # on the avenue
         spots += [(x + rng.uniform(-4, 4), z + rng.uniform(-4, 4)) for x, z in self.block_spots[::2]]          # in the blocks
         spots += [(cx + 30, z0 - 40), (cx - 30, z0 - 66), (cx + 32, z0 - 84), (cx - 28, z0 - 30)]            # beside the aerial shot's path
+        spots = [(x, z) for x, z in spots if not (abs(x - cx - 1) < 11 and z0 - 62 < z < z0 + 2)]   # the bin's route stays clear
         for j, (x, z) in enumerate(spots):
             f = glow(self.root, Vec3(x, 0.9, z), (1.1, 1.4, 1.1), color.rgb(255, 120, 40), model='sphere')
             halo = glow(self.root, Vec3(x, 0.1, z), (7.0, 0.02, 7.0), color.rgba(255, 110, 40, 55), model='circle', rotation_x=90)
@@ -189,14 +190,16 @@ class Street:
                 puffs.append(e)
             self.smoke.append((x, z, puffs, rng.uniform(0, 1), rng.uniform(-1, 1)))
             self._rubble(x - 2.5, z + 2.0, rng, 5)
-        for _ in range(70):                                                              # where the dead mill about
-            ang = rng.choice((0, 1))
-            if ang:
-                self.crowd_spots.append((cx + rng.uniform(-6, 6), z0 - rng.uniform(44, length)))     # none on the bin's route
-            else:
-                self.crowd_spots.append((cx + rng.choice((-1, 1)) * (self.width / 2 + BLOCK / 2 + rng.uniform(-14, 14)),
-                                         z0 - 6 - BLOCK / 2 - PITCH * rng.randint(0, 2) - BLOCK / 2 - ROAD_W / 2
-                                         + rng.uniform(-5, 5)))
+        n = 14                                                                           # the dead, spread evenly (one per slice)
+        for i in range(n):                                                               # down the far avenue
+            self.crowd_spots.append((cx + rng.uniform(-6, 6), z0 - 46 - (length - 50) * (i + rng.random()) / n))
+        cells = [(x, z) for x, z in self.block_spots if z < z0 - 20]
+        for i in range(n):                                                               # round the blocks
+            x, z = cells[i % len(cells)]
+            self.crowd_spots.append((x + rng.uniform(-BLOCK / 2, BLOCK / 2), z + rng.uniform(-BLOCK / 2, BLOCK / 2)))
+        self.lining = [(cx + side * rng.uniform(6.2, 7.2), z0 - 6 - 30 * (i + rng.random()) / 6)    # watching the bin's route
+                       for i in range(6) for side in (-1, 1)]
+        self.lining = [p for p in self.lining if abs(p[1] - (z0 - 26)) > 6]                  # not where the bin falls
 
     def _gate(self, rng):
         """The checkpoint: two guard towers either side of the road, wire fences, a bus across half of it."""

@@ -100,8 +100,9 @@ class Horde:
 
     def run(self, dt, point, speed=2.2, stop_at=1.0, gap=6.0):
         """Chase a point ``gap`` behind the cat (the cat runs towards +z) and never get nearer than that."""
-        goal = Vec3(point.x, point.y, point.z - gap)
         for z in self.alert:
+            side = 1 if z.root.x >= point.x else -1
+            goal = Vec3(point.x + side * 2.5, point.y, point.z - gap)       # on their own side of the road
             moving = z.root.z < goal.z and z.walk_to(goal, dt, speed) > stop_at
             z.pose(self.t * 2.4, moving)
 
