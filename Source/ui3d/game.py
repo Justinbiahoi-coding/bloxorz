@@ -11,11 +11,12 @@ from engine.problem import DIRS
 
 from .block import Block
 from .floor import Floor
+from .elevscreen import ElevatorScreen
 from .intro import Intro
 from .world import FLOOR_H, aim_sun, move_lantern, point_camera
 
 KEYS = {'left arrow': 'LEFT', 'right arrow': 'RIGHT', 'up arrow': 'DOWN', 'down arrow': 'UP'}
-ROLL_S, DOORS_S, RIDE_S = 0.17, 0.6, 1.6
+ROLL_S, DOORS_S, RIDE_S = 0.17, 0.6, 4.6
 SKY = [(14, 17, 34), (16, 20, 40), (18, 22, 46), (20, 25, 52), (22, 28, 58)]   # night, lobby .. roof
 
 
@@ -56,6 +57,7 @@ class TowerGame(Entity):
         self.panel = Entity(parent=camera.ui, model='quad', color=color.rgba(20, 26, 44, 190), z=1,
                             scale=(0.5, 0.17), position=window.top_left + Vec3(0.27, -0.095, 0))
         self._hud()
+        self.elev = ElevatorScreen()                         # the 2D lift cutscene, shown while the car climbs
         self.intro = Intro(self.floor, self.tower.count, *self._camera_for(self.floor))
         self.intro.light(self.sun)
         self.phase = 'intro'
@@ -201,8 +203,11 @@ class TowerGame(Entity):
                 self.ride_yaw = ((new.rotation_y - car.rotation_y + 180) % 360 - 180, car.rotation_y)
                 self.cam_from = (camera.position, self._camera_for(self.floor)[1])
                 self.phase, self.t = 'ride', 0.0
+                self._show_hud(False)
+                self.elev.start(self.floor.index, self.next_floor.index, self.next_floor.roof)
         elif self.phase == 'ride':                                  # the car and the camera go up a storey
             self.t += dt / RIDE_S
+            self.elev.update(min(1.0, self.t))
             k = _ease(min(1.0, self.t))
             rise = (self.next_floor.base - self.floor.base) * k
             dx, dz = self.ride_shift
@@ -214,6 +219,8 @@ class TowerGame(Entity):
             camera.position = start_pos + (pos - start_pos) * k
             point_camera(camera, start_target + (target - start_target) * k)
             if self.t >= 1:
+                self.elev.hide()
+                self._show_hud(True)
                 self.floor.destroy()
                 self.floor, self.next_floor = self.next_floor, None
                 self._aim(self.floor)
