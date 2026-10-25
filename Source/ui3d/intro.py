@@ -121,8 +121,11 @@ class Intro:
             for x, z in self.street.block_spots[:18]:
                 pts.append(Vec3(x + random.uniform(-9, 9), self.bottom, z + random.uniform(-9, 9)))
             for _ in range(10):
-                pts.append(Vec3(self.cx + random.uniform(-7, 7), self.bottom,
-                                self.street.z0 - random.uniform(10, 70)))
+                x = self.cx + random.choice((-1, 1)) * random.uniform(4.0, 8.0)       # beside the route, never on it
+                pts.append(Vec3(x, self.bottom, self.street.z0 - random.uniform(8, 70)))
+            for p in pts:                                           # keep the bin's route (a strip down the avenue) clear
+                if abs(p.x - self.cx) < 4.0 and p.z > self.street.z0 - 60:
+                    p.x = self.cx + (4.5 if p.x >= self.cx else -4.5) + random.uniform(0, 2)
             self.strays = Horde(pts, parent=self.root, yaw=0)
             self.crowd = Horde([Vec3(x, self.bottom, z) for x, z in self.street.crowd_spots], parent=self.root, scale=1.3)
             self.guards = Horde([Vec3(p.x, self.bottom, p.z) for p in self.street.gate_spots],
@@ -157,6 +160,12 @@ class Intro:
             self.guards.update(dt * 0.5, stride=2)
         if self.crowd is not None:
             self.crowd.update(dt * 0.6, stride=4)
+        if i >= 1 and self.figure is not None and self.figure.root.enabled:     # the dead the cat runs past go after it
+            cp = self.figure.root.position
+            for h in (self.strays, self.crowd, self.guards):
+                if h is not None:
+                    h.alarm(cp, 7.0)
+                    h.run(dt, cp)
         if self.leaves:
             self._open_doors(_ease(min(1.0, max(0.0, (k - 0.5) / 0.4))) if i == 3 else
                              (1.0 - _ease(min(1.0, max(0.0, (k - 0.55) / 0.25))) if i == 4 else 0.0))

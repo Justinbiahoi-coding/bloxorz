@@ -77,6 +77,7 @@ class Horde:
     def __init__(self, points, parent=None, scale=1.0, yaw=0.0):
         self.members = [Zombie(p, yaw + random.uniform(-25, 25), parent=parent, scale=scale) for p in points]
         self.t, self.n = 0.0, 0
+        self.alert = set()                                # the ones that have noticed the cat and are running after it
 
     def update(self, dt, target=None, speed=1.4, stop_at=0.0, stride=1):
         """``stride`` > 1 animates only every stride-th zombie each frame (each with the time it missed): a crowd
@@ -84,12 +85,22 @@ class Horde:
         self.t += dt
         self.n += 1
         for i, z in enumerate(self.members):
-            if stride > 1 and (i + self.n) % stride:
+            if z in self.alert or (stride > 1 and (i + self.n) % stride):
                 continue
             moving = False
             if target is not None:
                 moving = z.walk_to(target, dt * stride, speed) > stop_at
             z.pose(self.t, moving)
+
+    def alarm(self, point, radius):
+        """Anyone within ``radius`` of ``point`` (the cat running by) turns and starts after it."""
+        for z in self.members:
+            if z not in self.alert and math.hypot(z.root.x - point.x, z.root.z - point.z) < radius:
+                self.alert.add(z)
+
+    def run(self, dt, point, speed=2.2, stop_at=2.5):
+        for z in self.alert:
+            z.pose(self.t * 2.4, z.walk_to(point, dt, speed) > stop_at)
 
     def set_lunge(self, k):
         for z in self.members:

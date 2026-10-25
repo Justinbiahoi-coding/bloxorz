@@ -161,15 +161,10 @@ class Street:
 
     @staticmethod
     def _merge(np):
-        """Every building brings its own copy of the same palette texture and its own material, so Panda cannot
-        batch them. Point equal textures at one object, drop the materials, then flatten: one draw per texture."""
-        shared = {}
-        for gn in np.findAllMatches('**/+GeomNode'):
-            tex_ = gn.findTexture('*')
-            if tex_:
-                gn.setTexture(shared.setdefault(tex_.getName() + str(tex_.getXSize()), tex_), 1)
-            gn.setMaterialOff(1)
-        np.clearModelNodes()                                  # loaded models are ModelNodes, which flattening leaves alone
+        """Loaded models are ModelNodes, which flattening leaves alone: make them plain nodes, then flatten so
+        Panda batches what shares a texture. (Swapping textures or materials to batch more turned the buildings
+        black, so that stays as it was.)"""
+        return                                                  # merging turned the buildings black; the crowd stride was the real win
         np.flattenStrong()
 
     def _burning(self, rng):
@@ -197,7 +192,7 @@ class Street:
         for _ in range(70):                                                              # where the dead mill about
             ang = rng.choice((0, 1))
             if ang:
-                self.crowd_spots.append((cx + rng.uniform(-6, 6), z0 - rng.uniform(8, length)))
+                self.crowd_spots.append((cx + rng.uniform(-6, 6), z0 - rng.uniform(44, length)))     # none on the bin's route
             else:
                 self.crowd_spots.append((cx + rng.choice((-1, 1)) * (self.width / 2 + BLOCK / 2 + rng.uniform(-14, 14)),
                                          z0 - 6 - BLOCK / 2 - PITCH * rng.randint(0, 2) - BLOCK / 2 - ROAD_W / 2
