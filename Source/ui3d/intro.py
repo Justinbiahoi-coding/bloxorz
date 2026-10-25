@@ -164,7 +164,7 @@ class Intro:
                 self.figure.root.enabled = dive < 0.97
             self.street.bin.rotation_z = 8 * math.sin(k * 24) * max(0.0, 1 - k * 2.6)
             lift = math.sin(math.pi * min(1.0, k / 0.42)) if k < 0.42 else 0.0
-            self.street.lid.y = 1.9 + 0.75 * lift
+            self.street.lid.y = self.street.lid_y + 0.75 * lift
             self.street.lid.rotation_x = 46 * lift
             self.horde.update(dt, Vec3(bin_pos.x + 8, b, bin_pos.z + 4), speed=1.3, stop_at=1.0)
         elif i == 3:                                               # the bin gets up and runs for the doors

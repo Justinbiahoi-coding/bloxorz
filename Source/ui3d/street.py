@@ -6,6 +6,7 @@ own buildings facing the street (models/zb, used with the author's permission, s
 green courtyard of autumn trees inside. Crosswalks, litter, burnt cars and barricades dress the roads.
 Everything is parented to one entity so the cutscene can throw it away in one call.
 """
+import json
 import math
 import random
 
@@ -126,6 +127,8 @@ class Street:
         for i in range(14):                                                                  # wrecks and junk on the road
             z = z0 - 20 - rng.uniform(0, length - 40)
             x = cx + rng.uniform(-w / 2 + 2, w / 2 - 2)
+            if abs(z - (z0 - 26)) < 16:                                                      # keep the bin's shots clear
+                continue
             prop(self.root, 'zb/' + (CARS if i % 2 == 0 else JUNK)[i // 2 % 5], Vec3(x, 0.02, z),
                  rng.choice((88, 92, 268, 272)) if i % 2 == 0 else rng.uniform(0, 360), 1.5)
         for i, z in enumerate(z0 - 12 - 22 * i for i in range(5)):                           # burning barrels
@@ -161,20 +164,18 @@ class Street:
         return Vec3(x, top, z)
 
     def _bin(self, x, z):
-        """A plain municipal bin: the survivor dives into this one and comes out as the character."""
+        """The street bin the survivor dives into (zfr_lowpoly_trashbin, split into body and lid by
+        tools/blender_bin.py); the lid tilts open on its own centre."""
+        info = json.loads((ASSETS / 'models' / 'bin' / 'bin.json').read_text())
+        k = 0.9
         holder = Entity(parent=self.root, position=(x, 0, z))
-        body = color.rgb(126, 132, 138)
-        Entity(parent=holder, model=CYL, position=(0, 0.95, 0), scale=(0.92, 1.75, 0.92), color=body,
-               texture=tex('corrugated'), texture_scale=(2, 1))
-        for y in (0.45, 1.3):                                        # pressed ribs
-            Entity(parent=holder, model=CYL, position=(0, y, 0), scale=(0.97, 0.07, 0.97),
-                   color=color.rgb(96, 100, 108))
-        Entity(parent=holder, model=CYL, position=(0, 0.1, 0), scale=(0.99, 0.18, 0.99),
-               color=color.rgb(84, 88, 96))                          # base rim
-        self.lid = Entity(parent=holder, model=CYL, position=(0, 1.9, 0), scale=(1.0, 0.12, 1.0),
-                          color=color.rgb(150, 156, 162))
-        Entity(parent=self.lid, model=CYL, position=(0, 0.6, 0), scale=(0.3, 0.9, 0.3),
-               color=color.rgb(96, 100, 108))                        # handle
+        body = Entity(parent=holder, model='models/bin/bin_body', scale=k)
+        self.lid = Entity(parent=holder, model='models/bin/bin_lid', scale=k,
+                          position=(info['lid'][0] * k, info['lid'][1] * k, info['lid'][2] * k))
+        self.lid_y = self.lid.y
+        for e in (body, self.lid):
+            for m in e.findAllMaterials():
+                m.setMetallic(0)
         return holder
 
     def flicker(self, t):
