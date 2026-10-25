@@ -136,35 +136,38 @@ class LiftScene:
 
     def _act(self, t):
         h = self.bin_h
-        rim = Vec3(0, h - 0.05, 0.0)                               # where the cat sits (bin-local)
-        lid_floor = Vec3(1.9, 0.18, -0.4)                          # where the lid lands (bin-local)
+        spot = Vec3(1.7, 0.0, -0.3)                                # where the cat sits, on the floor beside the bin
+        lid_floor = Vec3(-2.0, 0.18, -0.5)                         # the lid lands on the other side
         squash = 0.0
         lid_pos, lid_rot = Vec3(self.lid_rest), Vec3(0, 0, 0)
-        cat_on, cat_pos, frame, cat_kind = False, Vec3(0, 0, 0), 0, 'sit'
+        cat_on, cat_pos, frame, cat_kind, yaw = False, Vec3(0, 0, 0), 0, 'sit', 20
         pitch = 0.0
+        inside = Vec3(0, 0.7, 0)
         if 0.20 <= t < 0.26:                                       # the bin shudders, about to burst
             u = (t - 0.20) / 0.06
             squash = math.sin(u * math.pi * 6) * 0.025 * u
-        elif 0.26 <= t < 0.36:                                     # the lid goes, the cat leaps out onto the rim
-            u = (t - 0.26) / 0.10
+        elif 0.26 <= t < 0.37:                                     # the lid goes, the cat leaps out over the rim
+            u = (t - 0.26) / 0.11
             lid_pos = self.lid_rest + (lid_floor - self.lid_rest) * (u * u * (3 - 2 * u)) + Vec3(0, 3.6 * math.sin(math.pi * u), 0)
-            lid_rot = Vec3(0, 0, 720 * u)
+            lid_rot = Vec3(0, 0, -720 * u)
             cat_on = True
-            cat_pos = Vec3(0, _lerp(0.7, rim.y, _ease(u)) + 0.9 * math.sin(math.pi * u), 0)
-            cat_kind, frame = 'run', (1 if u < 0.45 else (4 if u < 0.8 else 6))
-        elif 0.36 <= t < 0.72:                                     # sitting on the rim, nodding like it is washing a paw
-            u = t - 0.36
-            cat_on, cat_pos = True, rim
+            e = _ease(u)
+            cat_pos = Vec3(_lerp(inside.x, spot.x, e), _lerp(inside.y, spot.y, e) + 2.0 * math.sin(math.pi * u), _lerp(inside.z, spot.z, e))
+            cat_kind, frame, yaw = 'run', (1 if u < 0.45 else (4 if u < 0.8 else 6)), 270
+        elif 0.37 <= t < 0.71:                                     # sitting beside the bin, nodding like it is washing a paw
+            u = t - 0.37
+            cat_on, cat_pos = True, spot
             frame = int(u * 14)
             pitch = 6 * math.sin(u * 22) * (0.5 + 0.5 * math.sin(u * 5))
-            lid_pos, lid_rot = lid_floor, Vec3(0, 0, 720)
-        elif 0.72 <= t < 0.78:                                     # hops back in, the lid is thrown back up
-            u = (t - 0.72) / 0.06
-            cat_on = u < 0.92
-            cat_pos = Vec3(0, _lerp(rim.y, 0.5, u * u) + 0.9 * math.sin(math.pi * min(1.0, u)), 0)
-            cat_kind, frame = 'run', (1 if u < 0.5 else 5)
+            lid_pos, lid_rot = lid_floor, Vec3(0, 0, -720)
+        elif 0.71 <= t < 0.78:                                     # hops back in, the lid is thrown back up
+            u = (t - 0.71) / 0.07
+            cat_on = u < 0.93
+            e = u * u
+            cat_pos = Vec3(_lerp(spot.x, inside.x, e), _lerp(spot.y, inside.y, e) + 2.0 * math.sin(math.pi * min(1.0, u)), _lerp(spot.z, inside.z, e))
+            cat_kind, frame, yaw = 'run', (1 if u < 0.5 else 5), 90
             lid_pos = lid_floor + (self.lid_rest + Vec3(0, 3.2, 0) - lid_floor) * u
-            lid_rot = Vec3(0, 0, 720 * (1 - u))
+            lid_rot = Vec3(0, 0, -720 * (1 - u))
         if 0.76 <= t < 0.82:                                       # the lid drops back on, a small bounce
             u = (t - 0.76) / 0.06
             lid_pos = self.lid_rest + Vec3(0, 3.2 * (1 - u) ** 2 if u < 0.7 else 0.12 * math.sin((u - 0.7) / 0.3 * math.pi), 0)
@@ -178,5 +181,5 @@ class LiftScene:
         self.cat.root.enabled = cat_on
         if cat_on:
             self.cat.root.position = self.bin.position + cat_pos
-            self.cat.root.rotation = (pitch, 18, 0)
+            self.cat.root.rotation = (pitch, yaw, 0)
             self.cat.show('Run_F' if cat_kind == 'run' else 'Pet_sit', frame)
