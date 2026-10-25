@@ -164,19 +164,34 @@ class Street:
         return Vec3(x, top, z)
 
     def _bin(self, x, z):
-        """The street bin the survivor dives into (zfr_lowpoly_trashbin, split into body and lid by
-        tools/blender_bin.py); the lid tilts open on its own centre."""
+        """The street bin (zfr_lowpoly_trashbin, split into body and lid by tools/blender_bin.py).
+
+        holder (position of the bin's centre) -> spin (rolling about the world x axis once it lies down) ->
+        lie (tipped over by rotation_z) -> the parts. standing: ``tip(0)``; lying across x: ``tip(90)``."""
         info = json.loads((ASSETS / 'models' / 'bin' / 'bin.json').read_text())
         k = 0.9
-        holder = Entity(parent=self.root, position=(x, 0, z))
-        body = Entity(parent=holder, model='models/bin/bin_body', scale=k)
-        self.lid = Entity(parent=holder, model='models/bin/bin_lid', scale=k,
-                          position=(info['lid'][0] * k, info['lid'][1] * k, info['lid'][2] * k))
-        self.lid_y = self.lid.y
-        for e in (body, self.lid):
+        self.bin_h, self.bin_r = info['height'] * k, info['width'] / 2 * k
+        holder = Entity(parent=self.root, position=(x, self.bin_h / 2, z))
+        self.bin_spin = Entity(parent=holder)
+        self.bin_lie = Entity(parent=self.bin_spin)
+        for name, pos in (('bin_body', (0, 0, 0)), ('bin_lid', info['lid'])):
+            e = Entity(parent=self.bin_lie, model='models/bin/' + name, scale=k,
+                       position=(pos[0] * k, pos[1] * k - self.bin_h / 2, pos[2] * k))
             for m in e.findAllMaterials():
                 m.setMetallic(0)
         return holder
+
+    def tip_bin(self, theta, base_x, base_z, toward=-1):
+        """Knock the bin over about its base edge on the ``toward`` side (x direction): theta 0 = standing,
+        90 = lying across x. ``base_x``/``base_z`` is where it stood. Returns the centre it ends up at."""
+        h, r = self.bin_h, self.bin_r
+        th = math.radians(theta)
+        px = base_x + toward * r                                        # the edge it pivots on
+        cx = px + (-toward) * (r * math.cos(th)) + toward * (h / 2) * math.sin(th)
+        cy = r * math.sin(th) + (h / 2) * math.cos(th)
+        self.bin.position = Vec3(cx, cy, base_z)
+        self.bin_lie.rotation_z = -toward * theta                       # towards -x is a positive turn about z
+        return self.bin.position
 
     def flicker(self, t):
         for f, halo, phase in self.fires:

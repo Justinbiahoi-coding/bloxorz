@@ -3,9 +3,9 @@
   1. ten seconds: five low on the ground, gliding in through a checkpoint gate and down the ruined street;
      five from high above at an angle, over the autumn trees and the roofs to a rooftop helipad
   2. a ruined street, burning barrels; the survivor sprints down it with the horde behind
-  3. cornered: they dive into a street bin, the lid rocks shut, the horde shuffles past and loses them
-  4. the bin gets up and runs for the tower's lit doors; the horde turns and comes after it
-  5. at the doors: the title and "Enter Building", zombies closing in
+  3. cornered, the cat kicks a street bin over, hops on it and the horde shuffles past
+  4. it runs on top of the bin, rolling it down the street to the tower's lit doors, the horde on its heels
+  5. the doors open, the bin rolls in with the cat; the title and "Enter Building", zombies piling up outside
 
 Shots are joined by short fades. Any key skips to the title; another key goes into the lobby.
 The set is in street.py, the zombies in zombie.py; the survivor is the player's own model.
@@ -87,6 +87,8 @@ class Intro:
         self.street = Street(cx, cz - self.d / 2 - 1.0, length=76, width=13)
         self.street.root.reparent_to(self.root)
         self.street.root.y = b
+        self.bin0 = Vec3(self.street.bin.x, 0, self.street.bin.z)             # where the bin first stood
+        self.lying = Vec3(self.bin0.x - self.street.bin_r - self.street.bin_h / 2, 0, self.bin0.z)   # and where it comes to rest
         if (ASSETS / 'models' / 'tower.glb').exists():
             tower = prop(self.root, 'tower', Vec3(cx, b, cz), 0, 1)
             self._doors(tower)
@@ -111,10 +113,6 @@ class Intro:
     def _cast(self):
         """The survivor (the player's own model) and the horde."""
         self.hero = None
-        if cat_available():                                        # the cat that comes out of the bin and runs for the doors
-            self.hero = Cat(parent=self.root)
-            self.hero_holder = self.hero.root
-            self.hero_holder.enabled = False                       # shot 1 shows it before the bin
         self.horde, self.figure, self.strays, self.guards = None, None, None, None
         if zombies_available():
             pts = []                                               # the dead, spread over the whole city
@@ -130,9 +128,11 @@ class Intro:
             pts = [Vec3(self.cx + random.uniform(-4, 4), self.bottom, z0 - 42 - random.uniform(0, 9))
                    for _ in range(6)]
             self.horde = Horde(pts, parent=self.root, yaw=0)
-            # the survivor before the bin: one zombie mesh, blacked out, reads as a person in the dark
+            # the cat: runs from the horde, knocks the bin over, rides it into the tower
             self.figure = Cat(Vec3(self.cx - 1.2, self.bottom, z0 - 34), 180, parent=self.root) if cat_available() \
                 else Zombie(Vec3(self.cx - 1.2, self.bottom, z0 - 34), 0, kind=1, parent=self.root)
+            self.hero = self.figure
+            self.hero_holder = self.figure.root
 
     def _grain(self):
         self.noise = Entity(parent=camera.ui, model='quad', texture='textures/noise', z=-0.6,
@@ -145,7 +145,7 @@ class Intro:
     def _act(self, i, k, dt):
         """Move the cast for shot ``i`` at progress ``k``."""
         b, z0 = self.bottom, self.street.z0
-        bin_pos = self.street.bin.position
+        bin_pos = self.bin0
         if self.horde is None:
             return
         if self.strays is not None:                                # the city keeps shambling all the way through
@@ -169,42 +169,66 @@ class Intro:
                 self.figure.root.rotation_y = 180                  # facing the camera, running towards it
                 self.figure.pose(self.t * 2.6, walking=True)
             self.horde.update(dt, self.figure.root.position if self.figure else None, speed=2.1, stop_at=6.0)
-        elif i == 2:                                               # into the bin, lid down, horde drifts past
-            if self.figure:
-                dive = _ease(min(1.0, k / 0.35))
-                self.figure.root.position = Vec3(_lerp(bin_pos.x + 1.2, bin_pos.x, dive), b - 1.9 * dive,
-                                                 _lerp(bin_pos.z - 2.2, bin_pos.z, dive))
-                self.figure.root.enabled = dive < 0.97
-            self.street.bin.rotation_z = 8 * math.sin(k * 24) * max(0.0, 1 - k * 2.6)
-            lift = math.sin(math.pi * min(1.0, k / 0.42)) if k < 0.42 else 0.0
-            self.street.lid.y = self.street.lid_y + 0.75 * lift
-            self.street.lid.rotation_x = 46 * lift
-            self.horde.update(dt, Vec3(bin_pos.x + 8, b, bin_pos.z + 4), speed=1.3, stop_at=1.0)
-        elif i == 3:                                               # the bin gets up and runs for the doors
-            self.street.bin.enabled = k < 0.05
-            if self.hero:
-                self.hero_holder.enabled = True
-                self.hero_holder.position = Vec3(_lerp(bin_pos.x, self.door.x, _ease(k)), b,
-                                                 _lerp(bin_pos.z, self.door.z - 1.4, _ease(k)))
-                self.hero_holder.rotation_y = 180                  # running away from the camera, towards the doors
-                self.hero.pose(self.t * 2.6, True)
-            self.horde.update(dt, self.hero_holder.position if self.hero else None, speed=2.6, stop_at=2.4)
-        else:                                                      # through the doors: the survivor runs into the lobby
-            self.street.bin.enabled = False
-            if self.hero:
-                run = _ease(min(1.0, k / 0.7))
-                self.hero_holder.enabled = k < 0.8                     # gone once inside
-                self.hero_holder.position = Vec3(self.door.x, b, _lerp(self.door.z - 1.4, self.cz + 3.0, run))
-                self.hero_holder.rotation_y = 180
-                self.hero.pose(self.t * 2.6, True)
+        elif i == 2:                                               # the cat kicks the bin over and hops on it
+            cat, st = self.figure, self.street
+            bx, bz = self.bin0.x, self.bin0.z
+            r, h = st.bin_r, st.bin_h
+            theta = 90 * _ease(max(0.0, min(1.0, (k - 0.32) / 0.28)))
+            st.tip_bin(theta, bx, bz, toward=-1)
+            if cat:
+                cat.root.enabled = True
+                if k < 0.30:                                       # the last few strides to the bin
+                    f = k / 0.30
+                    cat.root.position = Vec3(_lerp(bx + 1.2, bx + 1.7, f), b, _lerp(bz - 2.2, bz, f))
+                    cat.root.rotation_y = _lerp(180, 90, _ease(f))  # swings round to face the bin
+                    cat.pose(self.t * 2.6, True)
+                elif k < 0.60:                                     # the kick: it springs at the bin and holds there
+                    f = (k - 0.30) / 0.30
+                    cat.root.position = Vec3(bx + 1.7 - 0.5 * math.sin(math.pi * f) * 0.4, b + 0.5 * math.sin(math.pi * min(1.0, f * 1.6)), bz)
+                    cat.root.rotation_y = 90
+                    cat.show('Run_F', 1 if f < 0.5 else 4)
+                else:                                              # up onto the fallen bin
+                    f = _ease((k - 0.60) / 0.22)
+                    top = Vec3(st.bin.x, st.bin_r * 2, st.bin.z)
+                    cat.root.position = Vec3(_lerp(bx + 1.7, top.x, f), b + _lerp(0, top.y, f) + 1.3 * math.sin(math.pi * f), _lerp(bz, top.z, f))
+                    cat.root.rotation_y = _lerp(90, 180, _ease((k - 0.7) / 0.3)) if k > 0.7 else 90
+                    cat.show('Run_F', 4 if f < 0.9 else 0)
+            self.horde.update(dt, Vec3(bx + 8, b, bz + 4), speed=1.3, stop_at=1.0)
+        elif i == 3:                                               # riding the bin to the doors, running on top
+            cat, st = self.figure, self.street
+            e = _ease(k)
+            rest = self.lying
+            x = _lerp(rest.x, self.door.x, e)
+            z = _lerp(rest.z, self.door.z - 1.4, e)
+            st.bin.position = Vec3(x, st.bin_r, z)
+            st.bin_spin.rotation_x = -math.degrees((z - rest.z) / st.bin_r)       # rolls as it travels
+            if cat:
+                cat.root.enabled = True
+                cat.root.position = Vec3(x, b + st.bin_r * 2, z)
+                cat.root.rotation_y = 180                          # running towards the doors, on top
+                cat.pose(self.t * 3.2, True)
+            self.horde.update(dt, cat.root.position if cat else None, speed=2.6, stop_at=2.4)
+        else:                                                      # through the doors: the bin rolls into the lobby
+            cat, st = self.figure, self.street
+            run = _ease(min(1.0, k / 0.7))
+            z = _lerp(self.door.z - 1.4, self.cz + 3.0, run)
+            st.bin.position = Vec3(self.door.x, st.bin_r, z)
+            st.bin_spin.rotation_x = -math.degrees((z - self.lying.z) / st.bin_r)
+            vis = k < 0.8
+            st.bin.enabled = vis
+            if cat:
+                cat.root.enabled = vis
+                cat.root.position = Vec3(self.door.x, b + st.bin_r * 2, z)
+                cat.root.rotation_y = 180
+                cat.pose(self.t * 3.2, True)
             self.horde.set_lunge(min(1.0, k * 1.6))
-            self.horde.update(dt, self.hero_holder.position if self.hero else None, speed=1.9,
+            self.horde.update(dt, cat.root.position if cat else None, speed=1.9,
                               stop_at=3.2 + 3.0 * k)                   # they pile up at the door
 
     # ---- the camera ----
     def _shot(self, i, k):
         cx, b, z0 = self.cx, self.bottom, self.street.z0
-        bin_pos = self.street.bin.position
+        bin_pos = self.bin0
         if i == 0:
             if k < 0.5:   # low on the ground: through the checkpoint gate and down the street towards the tower
                 u = k * 2
@@ -218,13 +242,15 @@ class Intro:
         if i == 1:      # down the street, the runner coming at us, ruins either side
             return (Vec3(cx + 5.2, b + 2.3, _lerp(z0 - 12, z0 - 17, k)),
                     Vec3(bin_pos.x + 2.5, b + 1.2, _lerp(z0 - 31, bin_pos.z - 3, k)))
-        if i == 2:      # close on the bin, drifting round it
-            a = math.radians(_lerp(26, 56, k))
-            return (Vec3(bin_pos.x + math.sin(a) * 8.5, b + 2.3, bin_pos.z + math.cos(a) * 8.5),
-                    Vec3(bin_pos.x + 1.2, b + 1.1, bin_pos.z - 2.5))
-        if i == 3:      # trailing the runner, the lit doors ahead
-            z = _lerp(bin_pos.z - 5.5, self.door.z - 9.0, _ease(k))
-            return Vec3(cx + 2.2, b + 2.7, z), Vec3(cx, b + 2.4, z + 11)
+        if i == 2:      # beside the bin as the cat knocks it over
+            a = math.radians(_lerp(24, 40, k))
+            return (Vec3(bin_pos.x + math.sin(a) * 7.5, b + 2.0, bin_pos.z + math.cos(a) * 7.5),
+                    Vec3(bin_pos.x - 0.9, b + 0.9, bin_pos.z))
+        if i == 3:      # trailing the cat and the rolling bin, the lit doors ahead
+            e = _ease(k)
+            x = _lerp(self.lying.x, self.door.x, e)
+            z = _lerp(self.lying.z, self.door.z - 1.4, e)
+            return Vec3(x + 3.4, b + 2.7, z - 6.0), Vec3(x - 0.3, b + 1.2, z + 2.5)
         return (Vec3(cx + _lerp(5.0, 3.2, k), b + 2.0, self.door.z - _lerp(15, 12, k)),
                 Vec3(cx, b + 4.2, self.cz))
 
@@ -284,8 +310,6 @@ class Intro:
             self.guards.destroy()
         if self.figure:
             self.figure.destroy()
-        if self.hero:
-            self.hero.destroy()
         self.street.destroy()
         for e in (self.root, self.overlay, self.vignette, self.noise, self.title, self.sub, self.line,
                   self.button, self.frame, self.skip):

@@ -10,7 +10,7 @@ from .world import ASSETS
 
 DIR = ASSETS / 'models' / 'cat'
 RUN, SIT = 8, 6
-SCALE = 3.6                       # the cat is about a quarter of a cell tall: make it a house cat next to people
+SCALE = 2.4                       # the cat is about a quarter of a cell tall: make it a house cat next to people
 
 
 def available():
@@ -27,7 +27,7 @@ class Cat:
                 e = Entity(parent=self.root, model='models/cat/%s_%02d' % (kind, i), scale=scale, enabled=False)
                 for m in e.findAllMaterials():
                     m.setMetallic(0)
-                e.setColorScale(0.74, 0.72, 0.7, 1)                      # the white skin blows out under the bright lights
+                e.setColorScale(0.3, 0.3, 0.31, 1)                      # the white skin blows out under the bright lights
                 self.frames[kind].append(e)
         b = self.frames['Run_F'][0].model_bounds                       # stand it on its feet, centred on x/z
         self.offset = (-b.center.x * scale, -b.start.y * scale, -b.center.z * scale)
