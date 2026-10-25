@@ -1,6 +1,6 @@
 """The cat (Zoomies by Scarlet Games): a flipbook of baked skinned poses, see tools/unity_cat.py.
 
-The Mecanim clips were sampled on the CPU into one static model per pose (models/cat/Run_F_NN, Pet_sit_NN);
+The Mecanim clips were sampled on the CPU into one static model per pose (models/cat/Run_F_NN, Pet_sit_NN, Lie_idle_00);
 ``Cat`` shows one at a time, so a run cycle or a sitting idle plays like a sprite sheet. The model's forward is
 -z at yaw 0, the same as the old character: yaw 180 runs towards +z. ``pose(t, walking)`` matches Zombie's.
 """
@@ -9,7 +9,7 @@ from ursina import Entity, destroy
 from .world import ASSETS
 
 DIR = ASSETS / 'models' / 'cat'
-RUN, SIT = 8, 6
+RUN, SIT, LIE = 8, 6, 1
 SCALE = 2.4                       # the cat is about a quarter of a cell tall: make it a house cat next to people
 
 
@@ -21,7 +21,7 @@ class Cat:
     def __init__(self, pos=(0, 0, 0), yaw=0.0, scale=SCALE, parent=None):
         self.root = Entity(parent=parent, position=pos, rotation_y=yaw)
         self.frames = {}
-        for kind, n in (('Run_F', RUN), ('Pet_sit', SIT)):
+        for kind, n in (('Run_F', RUN), ('Pet_sit', SIT), ('Lie_idle', LIE)):
             self.frames[kind] = []
             for i in range(n):
                 e = Entity(parent=self.root, model='models/cat/%s_%02d' % (kind, i), scale=scale, enabled=False)
