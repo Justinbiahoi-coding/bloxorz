@@ -11,7 +11,6 @@ face up or down), so the next move starts exactly from it.
 """
 import math
 
-from panda3d.core import LQuaternion, LVector3
 from ursina import Entity, Vec3, color, destroy
 
 from ui.blockfx import make_box, rolls_to
@@ -85,8 +84,6 @@ class Block:
         self.orient = None                                     # (pose, (rx, rz)) of the main piece
         self.squash, self.clock = 0.0, 0.0
         self.spin = 0.0                                        # degrees the lying body has rolled about its axis
-        self.quat = None                                       # the model's true orientation: every move turns it, so the
-                                                               # lid can end up underneath (None until first placed)
 
     def clear(self):
         for e in self.pieces:
@@ -104,15 +101,9 @@ class Block:
         for i, box in enumerate(_boxes(session, state)):
             orient = self._orient_for(box) if not state.split else (0, 0)
             piece = _piece(box, base, state.split and i == state.active, orient)
-            if not state.split and HAS_MODEL:
-                if self.quat is None:
-                    self.quat = LQuaternion(piece.getQuat())       # the model's default pose for this box
-                piece.setQuat(self.quat)
-            elif not state.split and _pose(box) != 'stand':
+            if not state.split and _pose(box) != 'stand':
                 piece.spinner.rotation_y = self.spin               # keep the roll we have already made
             self.pieces.append(piece)
-        if state.split:
-            self.quat = None
 
     @property
     def duration(self):
@@ -140,19 +131,6 @@ class Block:
         else:
             kind, o1 = 'barrel', o0
         self.roll = (kind, wd, session, after, base, idx, _centre(start, base), _centre(end, base), o0, o1, p1)
-        if not before.split and HAS_MODEL:
-            # every move turns the model a quarter about the horizontal axis across the travel direction, so what
-            # was underneath comes round on top after a few moves; a roll along its own axis turns it a whole
-            # wheel's worth (distance / radius)
-            wdp = LVector3(wd.x, wd.z, 0)                           # world -> Panda axes (y up becomes z up)
-            axis = LVector3(0, 0, 1).cross(wdp)
-            axis.normalize()
-            angle = math.degrees(1 / 0.46) if kind == 'barrel' else 90.0
-            hd = (start[2] if abs(wd.x) > 0 else start[3]) / 2     # half extent along the travel, half height
-            hy = start[4] / 2
-            c0 = self.roll[6]
-            self.turn = {'axis': axis, 'angle': angle, 'q0': LQuaternion(self.quat), 'hd': hd, 'hy': hy,
-                         'pivot': c0 + wd * hd + Vec3(0, -hy, 0)}
         return True
 
     def set_progress(self, t):
@@ -161,20 +139,6 @@ class Block:
         piece = self.pieces[idx]
         e = _smooth(t)
         arc = math.sin(math.pi * t) * hop
-        if HAS_MODEL and kind != 'hop':
-            tn = self.turn
-            q = LQuaternion()
-            q.setFromAxisAngle(tn['angle'] * e, tn['axis'])
-            piece.setQuat(tn['q0'] * q)                           # q0 first, then the new turn about the world axis
-            if kind == 'barrel':                                  # log roll as before: two little bumps per turn
-                piece.position = c0 + (c1 - c0) * e + Vec3(0, abs(math.sin(math.pi * 2 * t)) * hop, 0)
-            else:                                                 # a quarter turn about the edge it tips over
-                th = math.radians(90 * e)
-                ra, ry = -tn['hd'], tn['hy']
-                along = ra * math.cos(th) + ry * math.sin(th)
-                up = -ra * math.sin(th) + ry * math.cos(th)
-                piece.position = tn['pivot'] + wd * along + Vec3(0, up, 0)
-            return
         if kind == 'barrel':                                      # log roll: two little bumps per turn
             piece.position = c0 + (c1 - c0) * e + Vec3(0, abs(math.sin(math.pi * 2 * t)) * hop, 0)
             side = wd.x if piece.rotation_z else -wd.z
@@ -191,10 +155,6 @@ class Block:
 
     def finish(self):
         kind, wd, session, after, base, _, _, _, _, o1, p1 = self.roll
-        if HAS_MODEL and hasattr(self, 'turn') and not after.split:
-            q = LQuaternion()
-            q.setFromAxisAngle(self.turn['angle'], self.turn['axis'])
-            self.quat = self.turn['q0'] * q                      # remembered: the next move starts from here
         if not after.split:
             self.orient = (p1, o1)
             if kind == 'barrel':                                      # the roll carries on from here next time
