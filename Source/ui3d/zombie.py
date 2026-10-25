@@ -76,14 +76,19 @@ class Horde:
 
     def __init__(self, points, parent=None, scale=1.0, yaw=0.0):
         self.members = [Zombie(p, yaw + random.uniform(-25, 25), parent=parent, scale=scale) for p in points]
-        self.t = 0.0
+        self.t, self.n = 0.0, 0
 
-    def update(self, dt, target=None, speed=1.4, stop_at=0.0):
+    def update(self, dt, target=None, speed=1.4, stop_at=0.0, stride=1):
+        """``stride`` > 1 animates only every stride-th zombie each frame (each with the time it missed): a crowd
+        of a hundred poses itself in a few frames, and Ursina's property setters are slow."""
         self.t += dt
-        for z in self.members:
+        self.n += 1
+        for i, z in enumerate(self.members):
+            if stride > 1 and (i + self.n) % stride:
+                continue
             moving = False
             if target is not None:
-                moving = z.walk_to(target, dt, speed) > stop_at
+                moving = z.walk_to(target, dt * stride, speed) > stop_at
             z.pose(self.t, moving)
 
     def set_lunge(self, k):

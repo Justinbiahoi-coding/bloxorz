@@ -152,11 +152,11 @@ class Intro:
         if self.horde is None:
             return
         if self.strays is not None:                                # the city keeps shambling all the way through
-            self.strays.update(dt * 0.6)
+            self.strays.update(dt * 0.6, stride=4)
         if self.guards is not None:
-            self.guards.update(dt * 0.5)
+            self.guards.update(dt * 0.5, stride=2)
         if self.crowd is not None:
-            self.crowd.update(dt * 0.6)
+            self.crowd.update(dt * 0.6, stride=4)
         if self.leaves:
             self._open_doors(_ease(min(1.0, max(0.0, (k - 0.5) / 0.4))) if i == 3 else
                              (1.0 - _ease(min(1.0, max(0.0, (k - 0.55) / 0.25))) if i == 4 else 0.0))

@@ -50,6 +50,7 @@ class TowerGame(Entity):
         self.phase, self.t = 'play', 0.0
         self.queued = None
         self.prowl, self.cut, self.cut_cat = None, None, None
+        self._over_alpha = [-1, -1]
         camera.fov = 42
         self._place_block()
         self._aim(self.floor)
@@ -63,6 +64,11 @@ class TowerGame(Entity):
         self.flash = Entity(parent=camera.ui, model='quad', scale=(4, 2), z=2, color=color.rgba(0, 0, 0, 0), enabled=False)
         self.over_text = Text('GAME OVER', origin=(0, 0), scale=4.4, y=0.08, z=-3, color=color.rgba(255, 240, 230, 0), enabled=False)
         self.over_sub = Text('press R to try again', origin=(0, 0), scale=1.6, y=-0.32, z=-3, color=color.rgba(235, 230, 220, 0), enabled=False)
+        self.dead_cat = Cat(scale=2.4) if cat_available() else None      # built now so game over does not hitch
+        if self.dead_cat:
+            self.dead_cat.root.enabled = False
+        for name in ('bin_block_body', 'bin_block_lid'):
+            Entity(model='models/bin/' + name, enabled=False)
         self.elev = LiftScene(self.sun)                      # the lift cutscene, shown while the car climbs
         self.intro = Intro(self.floor, self.tower.count, *self._camera_for(self.floor))
         self.intro.light(self.sun)
@@ -189,7 +195,7 @@ class TowerGame(Entity):
             for m in e.findAllMaterials():
                 m.setMetallic(0)
         piece.enabled = False
-        self.cut_cat = Cat(parent=None, scale=2.4) if cat_available() else None
+        self.cut_cat = self.dead_cat
         if self.cut_cat:
             self.cut_cat.root.enabled = False
         self.cut_pos = Vec3(self.cut.position)
@@ -256,20 +262,27 @@ class TowerGame(Entity):
         self.over_text.enabled = self.over_sub.enabled = True
         k = self._bounce((t - 0.5) / 1.0)
         self.over_text.y = 0.62 + (0.2 - 0.62) * k
-        self.over_text.color = color.rgba(255, 240, 230, 255 if t > 0.5 else 0)
-        self.over_sub.color = color.rgba(235, 230, 220, int(230 * max(0.0, min(1.0, (t - 1.8) / 0.5))))
+        a = 255 if t > 0.5 else 0                                  # rebuilding a Text's colour is slow: only when it changes
+        if a != self._over_alpha[0]:
+            self._over_alpha[0] = a
+            self.over_text.color = color.rgba(255, 240, 230, a)
+        b = int(23 * round(10 * max(0.0, min(1.0, (t - 1.8) / 0.5))))
+        if b != self._over_alpha[1]:
+            self._over_alpha[1] = b
+            self.over_sub.color = color.rgba(235, 230, 220, b)
 
     def _retry(self):
         s = self.tower.session
         if self.cut:
             destroy(self.cut)
         if self.cut_cat:
-            self.cut_cat.destroy()
+            self.cut_cat.root.enabled = False
         if getattr(self, 'cut_shadow', None):
             destroy(self.cut_shadow)
             self.cut_shadow = None
         self.cut = self.cut_cat = None
         self.flash.enabled = self.over_text.enabled = self.over_sub.enabled = False
+        self._over_alpha = [-1, -1]
         camera.fov = 42
         self._show_hud(True)
         s.reset()
@@ -355,36 +368,24 @@ class TowerGame(Entity):
                     return
                 for c in getattr(self.block, 'chars', []):
                     c['shadow'].enabled = False
-                self.ride = [(e, Vec3(e.position)) for e in self.block.pieces] + [(self.floor.lift.root, Vec3(self.floor.lift.root.position))]
                 self.tower.descend()                                # (Tower.descend = next level)
-                self.next_floor = Floor(self.tower.session, self.tower.index, self.tower.count)
-                # the new floor's arrival car stands on a different cell: the old car slides over to it while it rises
-                car, new = self.floor.lift.root, self.next_floor.arrival.root
-                self.ride_shift = (new.x - car.x, new.z - car.z)
-                self.ride_yaw = ((new.rotation_y - car.rotation_y + 180) % 360 - 180, car.rotation_y)
-                self.cam_from = (camera.position, self._camera_for(self.floor)[1])
+                self.next_floor = None                              # built on the first ride frame, under the black fade
                 self.phase, self.t = 'ride', 0.0
                 self._show_hud(False)
-                self.elev.start(self.floor.index, self.next_floor.index, self.next_floor.roof)
-        elif self.phase == 'ride':                                  # the car and the camera go up a storey
-            self.t += dt / RIDE_S
-            k = _ease(min(1.0, self.t))
-            rise = (self.next_floor.base - self.floor.base) * k
-            dx, dz = self.ride_shift
-            for e, p0 in self.ride:
-                e.position = Vec3(p0.x + dx * k, p0.y + rise, p0.z + dz * k)
-            self.floor.lift.root.rotation_y = self.ride_yaw[1] + self.ride_yaw[0] * k
-            pos, target = self._camera_for(self.next_floor)
-            start_pos, start_target = self.cam_from
-            camera.position = start_pos + (pos - start_pos) * k
-            point_camera(camera, start_target + (target - start_target) * k)
-            self.elev.update(min(1.0, self.t))                      # the cutscene takes the camera over
+                self.elev.start(self.floor.index, self.tower.index, self.tower.is_last)
+        elif self.phase == 'ride':                                  # the lift cutscene covers the screen meanwhile
+            if self.next_floor is None:
+                self.next_floor = Floor(self.tower.session, self.tower.index, self.tower.count)
+                self.next_floor.root.enabled = False
+            self.t += min(dt, 0.04) / RIDE_S                        # a long first frame (building the floor) must not skip ahead
+            self.elev.update(min(1.0, self.t))
             if self.t >= 1:
                 self.elev.hide()
                 self._show_hud(True)
                 self.prowl = None                               # they die with their floor
                 self.floor.destroy()
                 self.floor, self.next_floor = self.next_floor, None
+                self.floor.root.enabled = True
                 self._spawn_prowlers()
                 self._aim(self.floor)
                 self._place_block()

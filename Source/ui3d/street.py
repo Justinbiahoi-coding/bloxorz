@@ -51,11 +51,12 @@ class Street:
         self.gate_z = z0 - length + 16
         self.props, self.block_spots = [], []
         rng = random.Random(21)
+        self.static = Entity(parent=self.root)                                                # everything that never moves
         self.sky = Sky(parent=self.root)                                                      # the default sky, browned by smoke
         self.sky.setColorScale(0.82, 0.66, 0.54, 1)
-        box_ = lambda *a, **k: Entity(parent=self.root, model=BOX, *a, **k)
-        box_(position=(cx, -0.3, z0 - length / 2), scale=(900, 0.2, 900), color=ASPHALT,
-             texture=tex('roof'), texture_scale=(220, 220))                                  # asphalt everywhere
+        box_ = lambda *a, **k: Entity(parent=self.static, model=BOX, *a, **k)
+        box_(position=(cx, -0.3, z0 - length / 2), scale=(560, 0.2, 560), color=ASPHALT,
+             texture=tex('roof'), texture_scale=(70, 70))                                  # asphalt everywhere
         self.fires = []
         cols = (-2, -1, 1, 2)                                                                # block columns either side
         rows = int((length - 8) // PITCH) + 1
@@ -63,31 +64,32 @@ class Street:
             zc = z0 - 6 - BLOCK / 2 - r * PITCH
             for c in cols:
                 xc = cx + (width / 2 + BLOCK / 2) * (1 if c > 0 else -1) + (abs(c) - 1) * PITCH * (1 if c > 0 else -1)
-                self._block(xc, zc, rng, (r + c) % 3 == 0 and abs(c) > 1)
+                self._block(xc, zc, rng, (r + c) % 3 == 0 and abs(c) > 1, thin=abs(c) > 1 or r in (-1, rows))
             zr = zc - BLOCK / 2 - ROAD_W / 2                                                 # cross street centre
             self._lines(zr)
         for i in range(int(length / 8)):                                                     # avenue centre line
-            glow(self.root, Vec3(cx, 0.03, z0 - 4 - i * 8), (0.25, 0.01, 3.4), color.rgb(236, 214, 130))
+            glow(self.static, Vec3(cx, 0.03, z0 - 4 - i * 8), (0.25, 0.01, 3.4), color.rgb(236, 214, 130))
         self._litter(rng, length)
         self._avenue(rng)
         self._burning(rng)
         self._gate(rng)
-        self.city = Entity(parent=self.root)
+        self.city = Entity(parent=self.static)
         pad = self._helipad()
         self.pad = pad
         self.bin = self._bin(cx - 2.5, z0 - 26)                                              # the hiding place
+        self._merge(self.static)                                                              # thousands of draw calls become a few
 
-    def _block(self, xc, zc, rng, park):
+    def _block(self, xc, zc, rng, park, thin=False):
         """A pavement slab with buildings (or, in a park, trees only) round its rim, courtyard in the middle."""
-        Entity(parent=self.root, model=BOX, position=(xc, 0.1, zc), scale=(BLOCK, 0.4, BLOCK), color=PAVE,
+        Entity(parent=self.static, model=BOX, position=(xc, 0.1, zc), scale=(BLOCK, 0.4, BLOCK), color=PAVE,
                texture=tex('concrete'), texture_scale=(BLOCK / 4, BLOCK / 4))
-        Entity(parent=self.root, model=BOX, position=(xc, 0.32, zc), scale=(BLOCK - 2 * PAV - 18, 0.1, BLOCK - 2 * PAV - 18),
+        Entity(parent=self.static, model=BOX, position=(xc, 0.32, zc), scale=(BLOCK - 2 * PAV - 18, 0.1, BLOCK - 2 * PAV - 18),
                color=GRASS, texture=tex('grass'), texture_scale=(4, 4))
         self.block_spots.append((xc, zc))
         # the four edges: (facing yaw, unit vector along the edge, outward normal)
-        for yaw, ax, az, nx, nz in ((0, 1, 0, 0, -1), (180, -1, 0, 0, 1), (90, 0, 1, 1, 0), (-90, 0, -1, -1, 0)):
+        for ei, (yaw, ax, az, nx, nz) in enumerate(((0, 1, 0, 0, -1), (180, -1, 0, 0, 1), (90, 0, 1, 1, 0), (-90, 0, -1, -1, 0))):
             span, inset, used = BLOCK - 2 * PAV - 5, PAV + 4.2, 0.0
-            if park:
+            if park or (thin and ei >= 2):                       # blocks far from the action get half the buildings
                 continue
             row = ROWHOUSES if rng.random() < 0.4 else BUILDINGS
             while True:
@@ -95,9 +97,12 @@ class Street:
                 w, d = w * G, d * G
                 if used + w > span:
                     break
+                if thin and rng.random() < 0.3:
+                    used += w + 0.5
+                    continue
                 s = -span / 2 + used + w / 2                                                 # along the edge
                 off = BLOCK / 2 - inset - (d - 7.0 * G) * 0.0                                # towards the street
-                bld = prop(self.root, 'zb/' + name, Vec3(xc + ax * s + nx * (off - d / 2 + 2.2),
+                bld = prop(self.static, 'zb/' + name, Vec3(xc + ax * s + nx * (off - d / 2 + 2.2),
                                                          0.3, zc + az * s + nz * (off - d / 2 + 2.2)), yaw, G)
                 self.props.append(bld)
                 if rng.random() < 0.16:                                                      # a building that is giving way
@@ -106,7 +111,7 @@ class Street:
                     self._rubble(bld.x + nx * (d / 2 + 0.8), bld.z + nz * (d / 2 + 0.8), rng, 9)
                 used += w + 0.5
         for _ in range(7 if not park else 18):                                              # courtyard trees
-            t = prop(self.root, 'zb/' + rng.choice(TREES),
+            t = prop(self.static, 'zb/' + rng.choice(TREES),
                      Vec3(xc + rng.uniform(-9, 9), 0.3, zc + rng.uniform(-9, 9)) if not park else
                      Vec3(xc + rng.uniform(-16, 16), 0.3, zc + rng.uniform(-16, 16)),
                      rng.uniform(0, 360), rng.uniform(2.4, 3.4))
@@ -116,7 +121,7 @@ class Street:
         """A heap of broken masonry in the road."""
         for _ in range(n):
             sz = rng.uniform(0.5, 1.6)
-            Entity(parent=self.root, model=BOX, position=(x + rng.uniform(-2.2, 2.2), sz * 0.35, z + rng.uniform(-2.2, 2.2)),
+            Entity(parent=self.static, model=BOX, position=(x + rng.uniform(-2.2, 2.2), sz * 0.35, z + rng.uniform(-2.2, 2.2)),
                    scale=(sz * rng.uniform(1, 1.8), sz * 0.7, sz), color=color.rgb(*[rng.randint(60, 100)] * 3),
                    texture=tex('concrete'), rotation_y=rng.uniform(0, 360), rotation_x=rng.uniform(-14, 14))
 
@@ -125,15 +130,15 @@ class Street:
         cx, w = self.cx, self.width
         for side in (-1, 1):
             for i in range(-3, 4):
-                glow(self.root, Vec3(cx + i * 1.8, 0.03, z + side * (ROAD_W / 2 + 0.2)), (0.9, 0.01, 2.2),
+                glow(self.static, Vec3(cx + i * 1.8, 0.03, z + side * (ROAD_W / 2 + 0.2)), (0.9, 0.01, 2.2),
                      color.rgb(238, 238, 230))
         for i in range(10):                                                                  # cross street centre line
             for sgn in (-1, 1):
-                glow(self.root, Vec3(cx + sgn * (ROAD_W / 2 + 4 + i * 8), 0.03, z), (3.4, 0.01, 0.25), color.rgb(236, 214, 130))
+                glow(self.static, Vec3(cx + sgn * (ROAD_W / 2 + 4 + i * 8), 0.03, z), (3.4, 0.01, 0.25), color.rgb(236, 214, 130))
 
     def _litter(self, rng, length):
-        for _ in range(170):
-            prop(self.root, 'zb/' + rng.choice(LITTER),
+        for _ in range(45):
+            prop(self.static, 'zb/' + rng.choice(LITTER),
                  Vec3(self.cx + rng.uniform(-60, 60), 0.04, self.z0 - rng.uniform(0, length)), rng.uniform(0, 360), 4.5)
 
     def _avenue(self, rng):
@@ -143,16 +148,29 @@ class Street:
             x = cx + rng.uniform(-w / 2 + 2, w / 2 - 2)
             if abs(z - (z0 - 26)) < 16:                                                      # keep the bin's shots clear
                 continue
-            prop(self.root, 'zb/' + (CARS if i % 2 == 0 else JUNK)[i // 2 % 5], Vec3(x, 0.02, z),
+            prop(self.static, 'zb/' + (CARS if i % 2 == 0 else JUNK)[i // 2 % 5], Vec3(x, 0.02, z),
                  rng.choice((88, 92, 268, 272)) if i % 2 == 0 else rng.uniform(0, 360), 1.5)
         for i, z in enumerate(z0 - 12 - 22 * i for i in range(5)):                           # burning barrels
             x = cx + (w / 2 - 1.2) * (1 if i % 2 else -1)
-            Entity(parent=self.root, model=CYL, position=(x, 0.35, z), scale=(0.55, 0.7, 0.55),
+            Entity(parent=self.static, model=CYL, position=(x, 0.35, z), scale=(0.55, 0.7, 0.55),
                    color=color.rgb(120, 70, 50), texture=tex('corrugated'))
             f = glow(self.root, Vec3(x, 0.85, z), (0.5, 0.6, 0.5), color.rgb(255, 150, 60), model='sphere')
             halo = glow(self.root, Vec3(x, 0.9, z), (2.4, 0.02, 2.4), color.rgba(255, 140, 50, 40), model='circle',
                         rotation_x=90)
             self.fires.append((f, halo, random.Random(i).uniform(0, 6)))
+
+    @staticmethod
+    def _merge(np):
+        """Every building brings its own copy of the same palette texture and its own material, so Panda cannot
+        batch them. Point equal textures at one object, drop the materials, then flatten: one draw per texture."""
+        shared = {}
+        for gn in np.findAllMatches('**/+GeomNode'):
+            tex_ = gn.findTexture('*')
+            if tex_:
+                gn.setTexture(shared.setdefault(tex_.getName() + str(tex_.getXSize()), tex_), 1)
+            gn.setMaterialOff(1)
+        np.clearModelNodes()                                  # loaded models are ModelNodes, which flattening leaves alone
+        np.flattenStrong()
 
     def _burning(self, rng):
         """Fires across the city with a column of smoke rising from each, wrecks round them, and spots for the
@@ -167,7 +185,7 @@ class Street:
             f = glow(self.root, Vec3(x, 0.9, z), (1.1, 1.4, 1.1), color.rgb(255, 120, 40), model='sphere')
             halo = glow(self.root, Vec3(x, 0.1, z), (7.0, 0.02, 7.0), color.rgba(255, 110, 40, 55), model='circle', rotation_x=90)
             self.fires.append((f, halo, rng.uniform(0, 6)))
-            prop(self.root, 'zb/' + rng.choice(CARS), Vec3(x + 1.6, 0.1, z - 1.2), rng.uniform(0, 360), 1.5)
+            prop(self.static, 'zb/' + rng.choice(CARS), Vec3(x + 1.6, 0.1, z - 1.2), rng.uniform(0, 360), 1.5)
             puffs = []
             for k in range(12):                                                           # rising soot puffs, recycled in flicker()
                 e = glow(self.root, Vec3(x, 2, z), 3.0, color.rgba(255, 255, 255, 200), model='quad', texture='textures/smoke',
@@ -189,13 +207,13 @@ class Street:
         """The checkpoint: two guard towers either side of the road, wire fences, a bus across half of it."""
         cx, w, gz = self.cx, self.width, self.gate_z
         for side in (-1, 1):
-            prop(self.root, 'zb/SA_Prop_GuardTower_01', Vec3(cx + side * (w / 2 + 1.0), 0, gz), 0, 2.4)
+            prop(self.static, 'zb/SA_Prop_GuardTower_01', Vec3(cx + side * (w / 2 + 1.0), 0, gz), 0, 2.4)
             for j in range(1, 6):
-                prop(self.root, 'zb/SA_Prop_Fence_Wire_Full_01', Vec3(cx + side * (w / 2 + 1.0 + j * 2.6), 0, gz - 1.0),
+                prop(self.static, 'zb/SA_Prop_Fence_Wire_Full_01', Vec3(cx + side * (w / 2 + 1.0 + j * 2.6), 0, gz - 1.0),
                      90, 1.4)
-        prop(self.root, 'zb/SA_Prop_BurntBrown_Bus_01', Vec3(cx + 4.8, 0, gz + 9), 78, 1.7)
+        prop(self.static, 'zb/SA_Prop_BurntBrown_Bus_01', Vec3(cx + 4.8, 0, gz + 9), 78, 1.7)
         for k in range(4):
-            prop(self.root, 'zb/SA_Prop_Barrier_0%d' % (1 + k % 3), Vec3(cx - 3.6 + k * 1.5, 0, gz + 3),
+            prop(self.static, 'zb/SA_Prop_Barrier_0%d' % (1 + k % 3), Vec3(cx - 3.6 + k * 1.5, 0, gz + 3),
                  rng.uniform(-10, 10), 1.8)
         self.gate_spots = [Vec3(cx - 2.4, 0, gz + 2.0), Vec3(cx + 2.8, 0, gz + 1.2)]
 
@@ -203,9 +221,9 @@ class Street:
         """A tall office block on the second block row with a helipad on its roof: the aerial shot ends on it
         (and the helicopter lands there at the end of the game)."""
         x, z = self.cx + (self.width / 2 + BLOCK / 2) + 4, self.z0 - 6 - BLOCK / 2 - PITCH
-        prop(self.root, 'zb/SA_Bld_OfficeWhite_03', Vec3(x, 0.3, z), 90, 1.9)
+        prop(self.static, 'zb/SA_Bld_OfficeWhite_03', Vec3(x, 0.3, z), 90, 1.9)
         top = 11.4 * 1.9 + 0.3
-        prop(self.root, 'zb/SA_Bld_HospitalBuildingMain_HeliPad_01', Vec3(x, top, z), 0, 1.9)
+        prop(self.static, 'zb/SA_Bld_HospitalBuildingMain_HeliPad_01', Vec3(x, top, z), 0, 1.9)
         return Vec3(x, top, z)
 
     def _bin(self, x, z):
