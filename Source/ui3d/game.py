@@ -16,7 +16,7 @@ from .intro import Intro
 from .world import FLOOR_H, aim_sun, move_lantern, point_camera
 
 KEYS = {'left arrow': 'LEFT', 'right arrow': 'RIGHT', 'up arrow': 'DOWN', 'down arrow': 'UP'}
-ROLL_S, DOORS_S, RIDE_S = 0.17, 0.6, 4.6
+ROLL_S, DOORS_S, RIDE_S = 0.17, 0.6, 7.5
 SKY = [(14, 17, 34), (16, 20, 40), (18, 22, 46), (20, 25, 52), (22, 28, 58)]   # night, lobby .. roof
 
 

@@ -18,6 +18,7 @@ from ursina import Entity, Text, Vec3, camera, color, destroy, window
 from .floor import box, glow, prop
 from .street import Street
 from .world import ASSETS, floor_y, point_camera, set_exposure
+from .cat import Cat, available as cat_available
 from .zombie import Horde, Zombie, available as zombies_available
 
 #      city   chase  hide   dash   title
@@ -110,19 +111,10 @@ class Intro:
     def _cast(self):
         """The survivor (the player's own model) and the horde."""
         self.hero = None
-        if (ASSETS / 'models' / 'player_actor' / 'player.glb').exists():
-            from direct.actor.Actor import Actor
-            from panda3d.core import Filename
-            holder = Entity(parent=self.root)
-            self.hero = Actor(Filename.fromOsSpecific(str(ASSETS / 'models/player_actor/player.glb')))
-            self.hero.reparentTo(holder)
-            self.hero.setScale(2.0 / 2.279)
-            for m in self.hero.findAllMaterials():
-                m.setMetallic(0)
-            self.hero.loop('run')
-            self.hero.setPlayRate(2.4, 'run')
-            self.hero_holder = holder
-            holder.enabled = False                                 # shot 1 shows a silhouette instead
+        if cat_available():                                        # the cat that comes out of the bin and runs for the doors
+            self.hero = Cat(parent=self.root)
+            self.hero_holder = self.hero.root
+            self.hero_holder.enabled = False                       # shot 1 shows it before the bin
         self.horde, self.figure, self.strays, self.guards = None, None, None, None
         if zombies_available():
             pts = []                                               # the dead, spread over the whole city
@@ -139,9 +131,8 @@ class Intro:
                    for _ in range(6)]
             self.horde = Horde(pts, parent=self.root, yaw=0)
             # the survivor before the bin: one zombie mesh, blacked out, reads as a person in the dark
-            self.figure = Zombie(Vec3(self.cx - 1.2, self.bottom, z0 - 34), 0, kind=1, parent=self.root)
-            self.figure.root.setColorScale(0.07, 0.08, 0.12, 1)
-            self.figure.root.setLightOff()
+            self.figure = Cat(Vec3(self.cx - 1.2, self.bottom, z0 - 34), 180, parent=self.root) if cat_available() \
+                else Zombie(Vec3(self.cx - 1.2, self.bottom, z0 - 34), 0, kind=1, parent=self.root)
 
     def _grain(self):
         self.noise = Entity(parent=camera.ui, model='quad', texture='textures/noise', z=-0.6,
@@ -175,7 +166,7 @@ class Intro:
                 self.figure.root.enabled = True
                 self.figure.root.position = Vec3(_lerp(bin_pos.x + 4.5, bin_pos.x + 1.2, k * k), b,
                                                  _lerp(z0 - 34, bin_pos.z - 2.2, k))
-                self.figure.root.rotation_y = 0                    # facing the camera, running towards it
+                self.figure.root.rotation_y = 180                  # facing the camera, running towards it
                 self.figure.pose(self.t * 2.6, walking=True)
             self.horde.update(dt, self.figure.root.position if self.figure else None, speed=2.1, stop_at=6.0)
         elif i == 2:                                               # into the bin, lid down, horde drifts past
@@ -196,6 +187,7 @@ class Intro:
                 self.hero_holder.position = Vec3(_lerp(bin_pos.x, self.door.x, _ease(k)), b,
                                                  _lerp(bin_pos.z, self.door.z - 1.4, _ease(k)))
                 self.hero_holder.rotation_y = 180                  # running away from the camera, towards the doors
+                self.hero.pose(self.t * 2.6, True)
             self.horde.update(dt, self.hero_holder.position if self.hero else None, speed=2.6, stop_at=2.4)
         else:                                                      # through the doors: the survivor runs into the lobby
             self.street.bin.enabled = False
@@ -204,6 +196,7 @@ class Intro:
                 self.hero_holder.enabled = k < 0.8                     # gone once inside
                 self.hero_holder.position = Vec3(self.door.x, b, _lerp(self.door.z - 1.4, self.cz + 3.0, run))
                 self.hero_holder.rotation_y = 180
+                self.hero.pose(self.t * 2.6, True)
             self.horde.set_lunge(min(1.0, k * 1.6))
             self.horde.update(dt, self.hero_holder.position if self.hero else None, speed=1.9,
                               stop_at=3.2 + 3.0 * k)                   # they pile up at the door
@@ -292,8 +285,7 @@ class Intro:
         if self.figure:
             self.figure.destroy()
         if self.hero:
-            self.hero.cleanup()
-            destroy(self.hero_holder)
+            self.hero.destroy()
         self.street.destroy()
         for e in (self.root, self.overlay, self.vignette, self.noise, self.title, self.sub, self.line,
                   self.button, self.frame, self.skip):
