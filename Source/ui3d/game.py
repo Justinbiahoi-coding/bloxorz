@@ -192,17 +192,23 @@ class TowerGame(Entity):
                     return
                 for c in getattr(self.block, 'chars', []):
                     c['shadow'].enabled = False
-                self.ride = [(e, e.y) for e in self.block.pieces] + [(self.floor.lift.root, self.floor.lift.root.y)]
+                self.ride = [(e, Vec3(e.position)) for e in self.block.pieces] + [(self.floor.lift.root, Vec3(self.floor.lift.root.position))]
                 self.tower.descend()                                # (Tower.descend = next level)
                 self.next_floor = Floor(self.tower.session, self.tower.index, self.tower.count)
+                # the new floor's arrival car stands on a different cell: the old car slides over to it while it rises
+                car, new = self.floor.lift.root, self.next_floor.arrival.root
+                self.ride_shift = (new.x - car.x, new.z - car.z)
+                self.ride_yaw = ((new.rotation_y - car.rotation_y + 180) % 360 - 180, car.rotation_y)
                 self.cam_from = (camera.position, self._camera_for(self.floor)[1])
                 self.phase, self.t = 'ride', 0.0
         elif self.phase == 'ride':                                  # the car and the camera go up a storey
             self.t += dt / RIDE_S
             k = _ease(min(1.0, self.t))
             rise = (self.next_floor.base - self.floor.base) * k
-            for e, y0 in self.ride:
-                e.y = y0 + rise
+            dx, dz = self.ride_shift
+            for e, p0 in self.ride:
+                e.position = Vec3(p0.x + dx * k, p0.y + rise, p0.z + dz * k)
+            self.floor.lift.root.rotation_y = self.ride_yaw[1] + self.ride_yaw[0] * k
             pos, target = self._camera_for(self.next_floor)
             start_pos, start_target = self.cam_from
             camera.position = start_pos + (pos - start_pos) * k

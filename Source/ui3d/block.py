@@ -83,6 +83,7 @@ class Block:
         self.pieces, self.roll = [], None
         self.orient = None                                     # (pose, (rx, rz)) of the main piece
         self.squash, self.clock = 0.0, 0.0
+        self.spin = 0.0                                        # degrees the lying body has rolled about its axis
 
     def clear(self):
         for e in self.pieces:
@@ -99,7 +100,10 @@ class Block:
         self.clear()
         for i, box in enumerate(_boxes(session, state)):
             orient = self._orient_for(box) if not state.split else (0, 0)
-            self.pieces.append(_piece(box, base, state.split and i == state.active, orient))
+            piece = _piece(box, base, state.split and i == state.active, orient)
+            if not state.split and _pose(box) != 'stand':
+                piece.spinner.rotation_y = self.spin               # keep the roll we have already made
+            self.pieces.append(piece)
 
     @property
     def duration(self):
@@ -138,7 +142,7 @@ class Block:
         if kind == 'barrel':                                      # log roll: two little bumps per turn
             piece.position = c0 + (c1 - c0) * e + Vec3(0, abs(math.sin(math.pi * 2 * t)) * hop, 0)
             side = wd.x if piece.rotation_z else -wd.z
-            piece.spinner.rotation_y = math.degrees(1 / 0.46) * e * side
+            piece.spinner.rotation_y = self.spin + math.degrees(1 / 0.46) * e * side
             return
         if kind == 'hop' or not HAS_MODEL:                        # a box tumbles a quarter turn over its centre
             piece.position = c0 + (c1 - c0) * e + Vec3(0, arc, 0)
@@ -150,9 +154,13 @@ class Block:
         piece.rotation_z = o0[1] + (o1[1] - o0[1]) * lead
 
     def finish(self):
-        kind, _, session, after, base, _, _, _, _, o1, p1 = self.roll
+        kind, wd, session, after, base, _, _, _, _, o1, p1 = self.roll
         if not after.split:
             self.orient = (p1, o1)
+            if kind == 'barrel':                                      # the roll carries on from here next time
+                self.spin += math.degrees(1 / 0.46) * (wd.x if o1[1] else -wd.z)
+            else:
+                self.spin = 0.0
         self.place(session, after, base)
         self.squash = MOVES[kind][2]                              # landing: squash, then spring back
 
