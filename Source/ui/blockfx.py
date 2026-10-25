@@ -52,6 +52,14 @@ def rolls_to(start, d, end):
     return lo[2] > -1e-6 and all(abs(a - b) < 1e-6 for a, b in zip(got, end))
 
 
+def rolled_box(start, d):
+    """The box a quarter roll towards d ends up as, whether or not the board is there to hold it."""
+    pts = _rolled(start, d, math.pi / 2)
+    lo = [min(p[i] for p in pts) for i in range(3)]
+    size = [max(p[i] for p in pts) - lo[i] for i in range(3)]
+    return (round(lo[0]), round(lo[1]), round(size[0]), round(size[1]), round(size[2]))
+
+
 def start_roll(start, d, idx, now):
     return SimpleNamespace(box=start, d=d, idx=idx, t0=now)
 

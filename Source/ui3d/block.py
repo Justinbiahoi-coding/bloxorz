@@ -13,7 +13,7 @@ import math
 
 from ursina import Entity, Vec3, color, destroy
 
-from ui.blockfx import make_box, rolls_to
+from ui.blockfx import make_box, rolled_box, rolls_to
 
 from .floor import TILE_TOP
 from .world import ASSETS
@@ -109,13 +109,18 @@ class Block:
     def duration(self):
         return MOVES[self.roll[0]][0] if self.roll else 0.2
 
-    def start_roll(self, session, before, after, action, d, base):
+    def start_fall(self, session, before, action, d, base):
+        """A move the board does not allow: roll the block over the edge anyway, onto the bare floor."""
+        return self.start_roll(session, before, None, action, d, base, off_board=True)
+
+    def start_roll(self, session, before, after, action, d, base, off_board=False):
         """Begin animating the move; False when it is not a plain roll (then just place the new state)."""
-        if action == 'SWITCH' or before.split != after.split:
+        if action == 'SWITCH' or (after is not None and before.split != after.split):
             return False
         idx = before.active if before.split else 0
-        start, end = _boxes(session, before)[idx], _boxes(session, after)[idx]
-        if not rolls_to(start, d, end):
+        start = _boxes(session, before)[idx]
+        end = rolled_box(start, d) if off_board else _boxes(session, after)[idx]
+        if not off_board and not rolls_to(start, d, end):
             return False
         self.place(session, before, base)
         wd = Vec3(d[0], 0, -d[1])                                 # engine y grows southwards = world -z
@@ -155,6 +160,10 @@ class Block:
 
     def finish(self):
         kind, wd, session, after, base, _, _, _, _, o1, p1 = self.roll
+        if after is None:                                             # it went off the board: leave it lying there
+            self.roll = None
+            self.squash = MOVES[kind][2]
+            return
         if not after.split:
             self.orient = (p1, o1)
             if kind == 'barrel':                                      # the roll carries on from here next time

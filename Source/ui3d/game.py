@@ -4,14 +4,16 @@ elevator. Arrows roll, Space swaps split cubes, R restarts the floor,
 Esc quits."""
 import math
 
-from ursina import Entity, Text, Vec3, application, camera, color, held_keys, time, window
+from ursina import Entity, Text, Vec3, application, camera, color, destroy, held_keys, time, window
 
 from engine import Tower
 from engine.problem import DIRS
 
 from .block import Block
+from .cat import Cat, available as cat_available
 from .floor import Floor
 from .liftscene import LiftScene
+from .prowl import Prowlers
 from .intro import Intro
 from .world import FLOOR_H, aim_sun, move_lantern, point_camera
 
@@ -47,6 +49,7 @@ class TowerGame(Entity):
         self.block = Block()
         self.phase, self.t = 'play', 0.0
         self.queued = None
+        self.prowl, self.cut, self.cut_cat = None, None, None
         camera.fov = 42
         self._place_block()
         self._aim(self.floor)
@@ -57,6 +60,9 @@ class TowerGame(Entity):
         self.panel = Entity(parent=camera.ui, model='quad', color=color.rgba(20, 26, 44, 190), z=1,
                             scale=(0.5, 0.17), position=window.top_left + Vec3(0.27, -0.095, 0))
         self._hud()
+        self.flash = Entity(parent=camera.ui, model='quad', scale=(4, 2), z=2, color=color.rgba(150, 0, 0, 0), enabled=False)
+        self.over_text = Text('GAME OVER', origin=(0, 0), scale=4.4, y=0.08, z=-3, color=color.rgba(255, 240, 230, 0), enabled=False)
+        self.over_sub = Text('press R to try again', origin=(0, 0), scale=1.6, y=-0.04, z=-3, color=color.rgba(235, 230, 220, 0), enabled=False)
         self.elev = LiftScene(self.sun)                      # the lift cutscene, shown while the car climbs
         self.intro = Intro(self.floor, self.tower.count, *self._camera_for(self.floor))
         self.intro.light(self.sun)
@@ -122,6 +128,10 @@ class TowerGame(Entity):
         if self.phase == 'roll' and (key in KEYS or key == 'space'):
             self.queued = key                                    # buffer one move so play feels responsive
             return
+        if self.phase == 'over':
+            if key in ('r', 'enter', 'space'):
+                self._retry()
+            return
         if self.phase != 'play':
             return
         s = self.tower.session
@@ -129,6 +139,8 @@ class TowerGame(Entity):
         if key in KEYS or key == 'space':
             action = KEYS.get(key, 'SWITCH')
             if not s.move(action):
+                if key in KEYS and self.prowl is not None:
+                    self._fall(action)                       # off the path: onto the bare floor, where they are
                 return
             if before.bridges != s.state.bridges:
                 self.floor.refresh()
@@ -141,6 +153,93 @@ class TowerGame(Entity):
             s.reset()
             self.floor.refresh()
             self._place_block()
+            if self.prowl:
+                self.prowl.reset()
+        self._hud()
+
+    # ---- falling off the path: the dead come for the bin ----
+    def _spawn_prowlers(self):
+        self.prowl = Prowlers(self.floor, count=4 + (1 if self.floor.index > 4 else 0), seed=self.floor.index)
+
+    def _fall(self, action):
+        s = self.tower.session
+        if self.block.start_fall(s, s.state, action, DIRS[action], self.floor.base):
+            self.phase, self.t = 'fall', 0.0
+
+    def _bin_spot(self):
+        pc = self.block.pieces[0].position
+        return Vec3(pc.x, self.floor.base, pc.z)
+
+    def _begin_swarm(self):
+        self.swarm_centre = self._bin_spot()
+        self.prowl.converge(self.swarm_centre)
+        self.phase, self.t = 'swarm', 0.0
+
+    def _begin_bite(self):
+        """The bin is surrounded. Swap the player piece for a bin with a loose lid, and a cat hiding in it."""
+        import builtins
+        piece = self.block.pieces[0]
+        self.cut = Entity(position=piece.position)
+        self.cut.setQuat(builtins.render, piece.spinner.getQuat(builtins.render))
+        self.cut_body = Entity(parent=self.cut, model='models/bin/bin_block_body')
+        self.cut_lid = Entity(parent=self.cut, model='models/bin/bin_block_lid')
+        for e in (self.cut_body, self.cut_lid):
+            for m in e.findAllMaterials():
+                m.setMetallic(0)
+        piece.enabled = False
+        self.cut_cat = Cat(parent=None, scale=2.6) if cat_available() else None
+        if self.cut_cat:
+            self.cut_cat.root.enabled = False
+        self.cut_pos = Vec3(self.cut.position)
+        self.phase, self.t = 'bite', 0.0
+
+    def _bite(self, dt):
+        """0-0.5 they close in and the bin shakes; 0.5-1.3 a lid flies off; 1.1 the cat is revealed; 1.9 red; 2.5 over."""
+        t = self.t
+        self.prowl.face(self.swarm_centre)
+        self.prowl.lunge(min(1.0, t / 0.5))
+        shake = math.sin(t * 60) * 0.05 * (1.0 if t < 1.2 else 0.0)
+        self.cut.position = self.cut_pos + Vec3(shake, 0, -shake * 0.6)
+        if t > 0.5:
+            u = min(1.0, (t - 0.5) / 0.8)
+            self.cut_lid.world_position = self.cut_pos + Vec3(1.8 * u, 3.4 * math.sin(math.pi * u) + 0.6 * u, -1.2 * u)
+            self.cut_lid.rotation = (0, 0, 540 * u)
+        if self.cut_cat and t > 1.0:
+            k = min(1.0, (t - 1.0) / 0.25)
+            self.cut_cat.root.enabled = True
+            self.cut_cat.root.position = self.cut_pos + Vec3(0, 1.0 + 0.5 * k, 0)
+            self.cut_cat.root.rotation_y = 0
+            self.cut_cat.root.scale = 0.4 + 0.6 * k
+            self.cut_cat.show('Pet_sit', int(t * 8))
+        cam_target = self.cut_pos + Vec3(0, 0.9, 0)
+        cam_pos = self.cut_pos + Vec3(1.2, 4.2 - 0.6 * min(1.0, t / 1.5), -6.2 + 1.0 * min(1.0, t / 1.5))
+        camera.position = camera.position + (cam_pos - camera.position) * min(1.0, dt * 3)
+        point_camera(camera, cam_target + Vec3(math.sin(t * 40) * 0.03 * (t > 1.6), 0, 0))
+        if t > 1.7:
+            self.flash.enabled = True
+            self.flash.color = color.rgba(150, 0, 0, int(150 * min(1.0, (t - 1.7) / 0.6)))
+        if t > 2.4:
+            self.over_text.enabled = self.over_sub.enabled = True
+            k = min(1.0, (t - 2.4) / 0.5)
+            self.over_text.color = color.rgba(255, 240, 230, int(255 * k))
+            self.over_sub.color = color.rgba(235, 230, 220, int(230 * k))
+            self.phase, self.t = 'over', 0.0
+
+    def _retry(self):
+        s = self.tower.session
+        for e in (self.cut, ):
+            if e:
+                destroy(e)
+        if self.cut_cat:
+            self.cut_cat.destroy()
+        self.cut = self.cut_cat = None
+        self.flash.enabled = self.over_text.enabled = self.over_sub.enabled = False
+        s.reset()
+        self.floor.refresh()
+        self._place_block()
+        self.prowl.reset()
+        self._aim(self.floor)
+        self.phase, self.t = 'play', 0.0
         self._hud()
 
     def _after_move(self):
@@ -152,6 +251,8 @@ class TowerGame(Entity):
         dt = time.dt
         self.block.tick(dt, self.phase == 'play')
         self.floor.animate(time.time())
+        if self.prowl and self.phase in ('play', 'roll', 'fall', 'swarm', 'bite', 'over'):
+            self.prowl.update(dt)
         if self.phase in ('play', 'roll'):                    # camera and lantern follow the player smoothly
             pos, target = self._camera_for(self.floor)
             k = min(1.0, dt * 3.0)
@@ -170,7 +271,32 @@ class TowerGame(Entity):
                 self._show_floor(True)
                 self._aim(self.floor)
                 self._show_hud(True)
+                self._spawn_prowlers()
                 self.phase = 'play'
+        elif self.phase == 'fall':
+            self.t += dt / self.block.duration
+            self.block.set_progress(min(1.0, self.t))
+            if self.t >= 1:
+                self.block.finish()
+                self._begin_swarm()
+        elif self.phase == 'swarm':
+            self.t += dt
+            self.prowl.face(self.swarm_centre)
+            cam_pos = self.swarm_centre + Vec3(0, 9.0, -10.5)
+            k = min(1.0, dt * 2.5)
+            camera.position = camera.position + (cam_pos - camera.position) * k
+            point_camera(camera, self.swarm_centre + Vec3(0, 0.6, 0))
+            if self.prowl.arrived or self.t > 6.0:
+                self._begin_bite()
+        elif self.phase == 'bite':
+            self.t += dt
+            self._bite(dt)
+        elif self.phase == 'over':
+            self.t += dt
+            self.prowl.lunge(0.8 + 0.2 * math.sin(self.t * 5))
+            k = min(1.0, self.t / 0.6)                           # the words fade in
+            self.over_text.color = color.rgba(255, 240, 230, int(255 * k))
+            self.over_sub.color = color.rgba(235, 230, 220, int(230 * k))
         elif self.phase == 'roll':
             self.t += dt / self.block.duration
             self.block.set_progress(min(1.0, self.t))
@@ -221,8 +347,10 @@ class TowerGame(Entity):
             if self.t >= 1:
                 self.elev.hide()
                 self._show_hud(True)
+                self.prowl = None                               # they die with their floor
                 self.floor.destroy()
                 self.floor, self.next_floor = self.next_floor, None
+                self._spawn_prowlers()
                 self._aim(self.floor)
                 self._place_block()
                 self.phase, self.t = 'open', 0.0
