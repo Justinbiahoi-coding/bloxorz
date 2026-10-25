@@ -11,7 +11,7 @@ from engine.problem import DIRS
 
 from .block import Block
 from .cat import Cat, available as cat_available
-from .floor import Floor
+from .floor import Floor, glow
 from .liftscene import LiftScene
 from .prowl import Prowlers
 from .intro import Intro
@@ -189,7 +189,7 @@ class TowerGame(Entity):
             for m in e.findAllMaterials():
                 m.setMetallic(0)
         piece.enabled = False
-        self.cut_cat = Cat(parent=None, scale=2.8) if cat_available() else None
+        self.cut_cat = Cat(parent=None, scale=2.4) if cat_available() else None
         if self.cut_cat:
             self.cut_cat.root.enabled = False
         self.cut_pos = Vec3(self.cut.position)
@@ -222,9 +222,11 @@ class TowerGame(Entity):
             if self.cut_cat:
                 c = self.cut_cat.root
                 c.enabled = True
-                c.position = self.VOID + Vec3(0.3, 0.1, 0)
-                c.rotation = (0, 90, 0)                     # lying on its side, seen in profile
-                self.cut_cat.show('Lie_idle', 0)
+                c.position = self.VOID + Vec3(0.2, 0.3, 0)
+                c.rotation = (0, 90, 90)                    # flat on its side, legs stretched out, seen in profile
+                self.cut_cat.show('Run_F', 4)
+                self.cut_shadow = glow(self.cut_cat.root.parent or self.cut_cat.root, self.VOID + Vec3(0.2, 0.02, 0.1), (3.6, 0.02, 1.3),
+                                       color.rgba(60, 60, 66, 120), model='circle', rotation_x=90)
             camera.position = self.VOID + Vec3(0, 3.2, -7.0)
             point_camera(camera, self.VOID + Vec3(0, 0.3, 0))
             camera.fov = 32
@@ -263,6 +265,9 @@ class TowerGame(Entity):
             destroy(self.cut)
         if self.cut_cat:
             self.cut_cat.destroy()
+        if getattr(self, 'cut_shadow', None):
+            destroy(self.cut_shadow)
+            self.cut_shadow = None
         self.cut = self.cut_cat = None
         self.flash.enabled = self.over_text.enabled = self.over_sub.enabled = False
         camera.fov = 42
