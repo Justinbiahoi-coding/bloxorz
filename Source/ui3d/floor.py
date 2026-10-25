@@ -97,26 +97,95 @@ class Floor:
         c = self.at((fx0 + fx1) / 2, (fy0 + fy1) / 2, -0.15)
         if self.roof:
             box(self.root, c, (w, 0.3, d), color.rgb(215, 215, 225), tex('roof', 'textures/gravel'), texture_scale=(w / 2, d / 2))
+        else:                                                  # bare, stained concrete
+            box(self.root, c, (w, 0.3, d), color.rgb(34, 34, 36), tex('concrete', 'textures/gravel'),
+                texture_scale=(w / 2, d / 2))
+        box(self.root, self.at((fx0 + fx1) / 2, fy1 + 0.5, -3.2), (w, 6.2, 0.4), color.rgb(26, 26, 30))
+
+    def _grime(self):
+        """Cracks, stains, moss and litter over the bare floor: a storey nobody has cleaned for years."""
+        fx0, fy0, fx1, fy1 = self.fp
+        rng = self.rng
+        for _ in range(int((fx1 - fx0) * (fy1 - fy0) * 0.3)):                         # cracks, some forking
+            x, y = rng.uniform(fx0, fx1), rng.uniform(fy0, fy1)
+            yaw = rng.uniform(0, 180)
+            for seg in range(rng.randint(1, 3)):
+                ln = rng.uniform(0.5, 1.6)
+                box(self.root, self.at(x, y, 0.004), (0.04, 0.006, ln), color.rgb(22, 20, 19), rotation_y=yaw)
+                x += math.sin(math.radians(yaw)) * ln * 0.9
+                y -= math.cos(math.radians(yaw)) * ln * 0.9
+                yaw += rng.uniform(-35, 35)
+        for _ in range(int((fx1 - fx0) * (fy1 - fy0) * 0.12)):                         # damp stains and moss
+            x, y = rng.uniform(fx0, fx1), rng.uniform(fy0, fy1)
+            moss = rng.random() < 0.35
+            sz = rng.uniform(0.8, 2.0)
+            box(self.root, self.at(x, y, 0.003), (sz, 0.004, sz * rng.uniform(0.6, 1.2)),
+                color.rgba(14, 30, 8, 150) if moss else color.rgba(4, 4, 4, 130), rotation_y=rng.uniform(0, 90))
+        free = [(x, y) for x in range(fx0, fx1 + 1) for y in range(fy0, fy1 + 1) if (x, y) not in self.session.level.kinds]
+        for x, y in rng.sample(free, min(len(free), 9)):                              # litter and blood
+            name = rng.choice(['SA_Prop_Litter_02', 'SA_Prop_Litter_04', 'SA_Prop_Litter_07', 'SA_Prop_Bloodstain_01',
+                               'SA_Prop_Bloodstain_03', 'SA_Prop_CinderBlock_01'])
+            prop(self.root, 'zb/' + name, self.at(x + rng.uniform(-.4, .4), y + rng.uniform(-.4, .4), 0.01),
+                 rng.uniform(0, 360), rng.uniform(1.2, 1.9) if 'Litter' in name or 'Blood' in name else 2.0
+                 ).setColorScale(0.4, 0.4, 0.4, 1)
+
+    def _rubble(self, x, y, n=7):
+        """A heap of broken concrete at (x, y) in floor units."""
+        rng = self.rng
+        for _ in range(n):
+            sz = rng.uniform(0.12, 0.42)
+            box(self.root, self.at(x + rng.uniform(-0.45, 0.45), y + rng.uniform(-0.45, 0.45), sz * 0.4),
+                (sz * rng.uniform(1, 1.8), sz * 0.8, sz), color.rgb(*[rng.randint(40, 62)] * 3), tex('concrete'),
+                rotation_y=rng.uniform(0, 360), rotation_x=rng.uniform(-18, 18), rotation_z=rng.uniform(-18, 18))
+
+    def _wall_cell(self, x, y, along_x, rng):
+        """One cell of broken wall: standing to a ragged height, a window gap, or collapsed into rubble."""
+        r = rng.random()
+        t, th = (1.0, 0.45) if along_x else (0.45, 1.0)
+        col = color.rgb(*[rng.randint(44, 58)] * 3)
+        cx_, cy_ = (x, y)
+
+        def seg(y0, y1):
+            box(self.root, self.at(cx_, cy_, (y0 + y1) / 2), (t, y1 - y0, th) if along_x else (th, y1 - y0, t),
+                col, tex('concrete'), texture_scale=(1, max(1, (y1 - y0))))
+
+        if r < 0.14:                                           # collapsed
+            seg(0, 0.3)
+            self._rubble(x, y, 6)
+        elif r < 0.40:                                         # window opening, frame left bare
+            h = rng.uniform(1.7, 2.1)
+            seg(0, 0.55)
+            seg(1.35, h)
         else:
-            box(self.root, c, (w, 0.3, d), color.rgb(150, 132, 112), tex('oak', 'textures/wood'), texture_scale=(w / 2, d / 2))
-        box(self.root, self.at((fx0 + fx1) / 2, fy1 + 0.5, -3.2), (w, 6.2, 0.4), color.rgb(70, 72, 82))
+            h = rng.uniform(1.2, 2.2)
+            seg(0, h)
+            if rng.random() < 0.5:                             # a jagged break and a rebar stub on top
+                box(self.root, self.at(x + rng.uniform(-.2, .2), y + rng.uniform(-.2, .2), h + 0.1),
+                    (0.5, 0.25, 0.4), col, tex('concrete'), rotation_y=rng.uniform(-30, 30), rotation_z=rng.uniform(-20, 20))
+                Entity(parent=self.root, model=CYL, position=self.at(x + rng.uniform(-.3, .3), y, h + 0.35),
+                       scale=(0.03, 0.6, 0.03), color=color.rgb(96, 62, 44), rotation_z=rng.uniform(-25, 25))
 
     def _room(self):
-        """Back and side walls with windows; the near (south) side is cut away, with a low glass rail."""
+        """Ruined back and side walls (ragged, with holes and heaps of rubble); the near side is open, with a
+        few barricades. Emergency light pools and the grime over the floor finish it."""
         fx0, fy0, fx1, fy1 = self.fp
+        rng = self.rng
         for x in range(fx0, fx1 + 1):                          # back wall
-            prop(self.root, 'wallWindow' if (x - fx0) % 3 == 1 else 'wall', self.at(x, fy0 - 0.5), 0, 1.0)
+            self._wall_cell(x, fy0 - 0.5, True, rng)
         for y in range(fy0, fy1 + 1):                          # side walls
-            for x, angle in ((fx0 - 0.5, 90), (fx1 + 0.5, -90)):
-                prop(self.root, 'wallWindow' if (y - fy0) % 3 == 1 else 'wall', self.at(x, y), angle, 1.0)
-        w = fx1 - fx0 + 1
-        box(self.root, self.at((fx0 + fx1) / 2, fy1 + 0.48, 0.25), (w, 0.5, 0.04), color.rgba(170, 210, 235, 90))
-        for x in range(fx0, fx1 + 2, 2):
-            box(self.root, self.at(x - 0.5, fy1 + 0.48, 0.25), (0.06, 0.5, 0.06), color.rgb(120, 130, 140))
-        for x in range(fx0 + 2, fx1, 4):                       # warm ceiling-lamp pools on the floor
-            for y in range(fy0 + 1, fy1, 4):
-                glow(self.root, self.at(x, y, 0.005), (2.2, 0.005, 2.2), color.rgba(255, 220, 160, 26), model='circle',
-                     rotation_x=90)
+            for x in (fx0 - 0.5, fx1 + 0.5):
+                self._wall_cell(x, y, False, rng)
+        for x in range(fx0 + 1, fx1, 4):                       # the open side: a broken line of barricades
+            if rng.random() < 0.75:
+                (prop(self.root, 'zb/' + rng.choice(['SA_Prop_Barrier_01', 'SA_Prop_Barrier_03', 'SA_Prop_Fence_Wood_Damaged_01',
+                                                    'SA_Prop_Crate_01', 'SA_Prop_Fence_Brick_01']),
+                     self.at(x + rng.uniform(-.3, .3), fy1 + 0.48), rng.uniform(-14, 14), 1.1)).setColorScale(0.4, 0.4, 0.4, 1)
+        self._grime()
+        for x in range(fx0 + 2, fx1, 5):                       # sickly light pools: dim amber, the odd red
+            for y in range(fy0 + 1, fy1, 5):
+                red = rng.random() < 0.3
+                glow(self.root, self.at(x, y, 0.005), (2.4, 0.005, 2.4),
+                     color.rgba(255, 70, 50, 30) if red else color.rgba(255, 190, 120, 22), model='circle', rotation_x=90)
 
     def _roof(self):
         fx0, fy0, fx1, fy1 = self.fp
@@ -171,11 +240,13 @@ class Floor:
                 box(self.root, self.at(x, y, 0.35), (0.7, 0.7, 0.7), color.white, tex('crate'))
 
     def _furnish(self):
+        """Wrecked furniture, barricades and a squatters' corner, only in the gaps: plenty of bare floor stays."""
         fx0, fy0, fx1, fy1 = self.fp
         bx0, by0, bx1, by1 = self.bbox
         walk = set(self.session.level.kinds)
         free = {(x, y) for x in range(fx0, fx1 + 1) for y in range(fy0, fy1 + 1)} - walk
         used, rng = set(), self.rng
+        grime = (0.4, 0.38, 0.36, 1)
 
         def room_for(cells, gap=1):
             return cells <= free and not any((x + dx, y + dy) in used for x, y in cells
@@ -185,45 +256,52 @@ class Floor:
             used.update(cells)
             free.difference_update(cells)
 
-        def desk(x, y, angle):
-            take({(x, y)})
-            g = Entity(parent=self.root, position=self.at(x, y), rotation_y=angle)
-            prop(g, 'desk', Vec3(0, 0, 0.1))
-            prop(g, 'computerScreen', Vec3(0, 0.48, 0.22))
-            prop(g, 'chairDesk', Vec3(0, 0, -0.42), 180)
+        def old(name, pos, yaw=0, k=1.0, tilt=0.0):
+            h = prop(self.root, 'zb/' + name if name.startswith('SA_') else name, pos, yaw, k)
+            h.setColorScale(*grime)
+            h.rotation_z = tilt
+            return h
 
         groups = 0
         inside = sorted((c for c in free if bx0 <= c[0] <= bx1 and by0 <= c[1] <= by1), key=lambda c: rng.random())
-        for x, y in inside:                                      # at most a few groups in the playfield's gaps
+        for x, y in inside:
             if groups >= 3:
                 break
             block = {(x + i, y + j) for i in range(2) for j in range(2)}
-            if groups == 0 and room_for(block):
+            if groups == 0 and room_for(block):                # a squatters' camp: couch, mattress, fire, crates
                 take(block)
                 c = self.at(x + 0.5, y + 0.5)
-                prop(self.root, 'rugRectangle', c + Vec3(0, 0.01, 0), 0, 1.5)
-                prop(self.root, 'tableRound', c, 0, 1.6)
-                for a in range(4):
-                    ang = a * 90 + 45
-                    off = Vec3(math.sin(math.radians(ang)), 0, math.cos(math.radians(ang))) * 0.95
-                    prop(self.root, 'chair', c + off, ang + 180)
+                old('SA_Prop_Mattress_02', c + Vec3(-0.25, 0.01, 0.1), 20, 1.5)
+                old('SA_Prop_Couch_Damaged_01', c + Vec3(0.35, 0, -0.5), 180, 1.0)
+                old('SA_Prop_Campfire_01', c + Vec3(0.3, 0, 0.45), 0, 1.0)
+                glow(self.root, c + Vec3(0.3, 0.012, 0.45), (1.4, 0.005, 1.4), color.rgba(255, 140, 60, 40), model='circle',
+                     rotation_x=90)
+                old('SA_Prop_Crate_01', c + Vec3(-0.6, 0, -0.45), 15, 0.9)
                 groups += 1
-            elif room_for({(x, y), (x, y + 1)}, gap=2):
-                desk(x, y, 0)
-                desk(x, y + 1, 180)
+            elif room_for({(x, y), (x, y + 1)}, gap=2):        # a toppled desk and a broken chair
+                take({(x, y), (x, y + 1)})
+                old('desk', self.at(x, y, 0.35), rng.uniform(0, 180), 1.0, 78)
+                old('SA_Prop_Chair_Damaged_0%d' % rng.randint(1, 3), self.at(x, y + 1), rng.uniform(0, 360), 1.2)
+                self._rubble(x, y + 0.4, 3)
                 groups += 1
-            elif room_for({(x, y)}, gap=2) and rng.random() < 0.5:
+            elif room_for({(x, y)}, gap=2) and rng.random() < 0.6:
                 take({(x, y)})
-                prop(self.root, 'pottedPlant', self.at(x, y))
+                old(rng.choice(['SA_Prop_Barrel_01', 'SA_Prop_Barrel_02', 'SA_Prop_Dumpster_01', 'SA_Prop_Crate_01',
+                                'SA_Prop_BodyBag_03']), self.at(x, y), rng.uniform(0, 360), 1.0)
                 groups += 1
-        for x in range(fx0 + 1, fx1, 4):                         # back wall: a little storage
+        for x in range(fx0 + 1, fx1, 4):                       # back wall: a toppled shelf, the odd barricade
             if room_for({(x, fy0)}) and rng.random() < 0.6:
                 take({(x, fy0)})
-                prop(self.root, rng.choice(['bookcaseOpen', 'bookcaseClosedDoors']), self.at(x, fy0 - 0.15), 180)
+                if rng.random() < 0.5:
+                    old(rng.choice(['bookcaseOpen', 'bookcaseClosedDoors']), self.at(x, fy0 - 0.1, 0.4), 180, 1.0, 72)
+                else:
+                    old('SA_Prop_Barrier_02', self.at(x, fy0), 0, 1.2)
         for corner in ((fx0, fy0), (fx1, fy0), (fx0, fy1), (fx1, fy1)):
             if room_for({corner}):
                 take({corner})
-                prop(self.root, rng.choice(['pottedPlant', 'lampRoundFloor']), self.at(*corner))
+                old(rng.choice(['SA_Prop_Barrel_02', 'SA_Prop_Crate_01', 'SA_Prop_Dumpster_01']), self.at(*corner),
+                    rng.uniform(0, 360), 1.0)
+                self._rubble(corner[0], corner[1], 4)
 
     # ---- the playfield, rebuilt whenever bridges change ----
     def refresh(self):
@@ -231,8 +309,8 @@ class Floor:
             destroy(e)
         s = self.session
         office = not self.roof
-        path_tex = tex('carpet' if office else 'paver', 'textures/concrete')
-        path_col = color.rgb(220, 226, 240) if office else color.rgb(235, 232, 225)
+        path_tex = tex('concrete' if office else 'paver', 'textures/concrete')
+        path_col = color.rgb(96, 100, 112) if office else color.rgb(235, 232, 225)   # worn, chipped slabs
         self.arrow = None
         for (x, y) in s.level.kinds:
             kind = s.tile_at(x, y)
