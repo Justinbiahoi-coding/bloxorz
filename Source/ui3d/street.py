@@ -51,7 +51,8 @@ class Street:
         self.gate_z = z0 - length + 16
         self.props, self.block_spots = [], []
         rng = random.Random(21)
-        Sky(parent=self.root)                                                                # the default blue day sky
+        self.sky = Sky(parent=self.root)                                                      # the default sky, browned by smoke
+        self.sky.setColorScale(0.82, 0.66, 0.54, 1)
         box_ = lambda *a, **k: Entity(parent=self.root, model=BOX, *a, **k)
         box_(position=(cx, -0.3, z0 - length / 2), scale=(900, 0.2, 900), color=ASPHALT,
              texture=tex('roof'), texture_scale=(220, 220))                                  # asphalt everywhere
@@ -69,6 +70,7 @@ class Street:
             glow(self.root, Vec3(cx, 0.03, z0 - 4 - i * 8), (0.25, 0.01, 3.4), color.rgb(236, 214, 130))
         self._litter(rng, length)
         self._avenue(rng)
+        self._burning(rng)
         self._gate(rng)
         self.city = Entity(parent=self.root)
         pad = self._helipad()
@@ -95,9 +97,13 @@ class Street:
                     break
                 s = -span / 2 + used + w / 2                                                 # along the edge
                 off = BLOCK / 2 - inset - (d - 7.0 * G) * 0.0                                # towards the street
-                self.props.append(prop(self.root, 'zb/' + name,
-                                       Vec3(xc + ax * s + nx * (off - d / 2 + 2.2),
-                                            0.3, zc + az * s + nz * (off - d / 2 + 2.2)), yaw, G))
+                bld = prop(self.root, 'zb/' + name, Vec3(xc + ax * s + nx * (off - d / 2 + 2.2),
+                                                         0.3, zc + az * s + nz * (off - d / 2 + 2.2)), yaw, G)
+                self.props.append(bld)
+                if rng.random() < 0.16:                                                      # a building that is giving way
+                    bld.rotation_x = rng.choice((-1, 1)) * rng.uniform(5, 11)
+                    bld.y -= 0.5
+                    self._rubble(bld.x + nx * (d / 2 + 0.8), bld.z + nz * (d / 2 + 0.8), rng, 9)
                 used += w + 0.5
         for _ in range(7 if not park else 18):                                              # courtyard trees
             t = prop(self.root, 'zb/' + rng.choice(TREES),
@@ -105,6 +111,14 @@ class Street:
                      Vec3(xc + rng.uniform(-16, 16), 0.3, zc + rng.uniform(-16, 16)),
                      rng.uniform(0, 360), rng.uniform(2.4, 3.4))
             t.setColorScale(*rng.choice(AUTUMN), 1)
+
+    def _rubble(self, x, z, rng, n=8):
+        """A heap of broken masonry in the road."""
+        for _ in range(n):
+            sz = rng.uniform(0.5, 1.6)
+            Entity(parent=self.root, model=BOX, position=(x + rng.uniform(-2.2, 2.2), sz * 0.35, z + rng.uniform(-2.2, 2.2)),
+                   scale=(sz * rng.uniform(1, 1.8), sz * 0.7, sz), color=color.rgb(*[rng.randint(60, 100)] * 3),
+                   texture=tex('concrete'), rotation_y=rng.uniform(0, 360), rotation_x=rng.uniform(-14, 14))
 
     def _lines(self, z):
         """Crosswalk stripes across the avenue and the cross street at one intersection."""
@@ -139,6 +153,37 @@ class Street:
             halo = glow(self.root, Vec3(x, 0.9, z), (2.4, 0.02, 2.4), color.rgba(255, 140, 50, 40), model='circle',
                         rotation_x=90)
             self.fires.append((f, halo, random.Random(i).uniform(0, 6)))
+
+    def _burning(self, rng):
+        """Fires across the city with a column of smoke rising from each, wrecks round them, and spots for the
+        dead to crowd in: what the aerial shot looks down on."""
+        cx, z0, length = self.cx, self.z0, self.length
+        self.smoke = []
+        self.crowd_spots = []
+        spots = [(cx + rng.uniform(-10, 10), z0 - 20 - rng.uniform(0, length - 30)) for _ in range(6)]       # on the avenue
+        spots += [(x + rng.uniform(-4, 4), z + rng.uniform(-4, 4)) for x, z in self.block_spots[::2]]          # in the blocks
+        spots += [(cx + 30, z0 - 40), (cx - 30, z0 - 66), (cx + 32, z0 - 84), (cx - 28, z0 - 30)]            # beside the aerial shot's path
+        for j, (x, z) in enumerate(spots):
+            f = glow(self.root, Vec3(x, 0.9, z), (1.1, 1.4, 1.1), color.rgb(255, 120, 40), model='sphere')
+            halo = glow(self.root, Vec3(x, 0.1, z), (7.0, 0.02, 7.0), color.rgba(255, 110, 40, 55), model='circle', rotation_x=90)
+            self.fires.append((f, halo, rng.uniform(0, 6)))
+            prop(self.root, 'zb/' + rng.choice(CARS), Vec3(x + 1.6, 0.1, z - 1.2), rng.uniform(0, 360), 1.5)
+            puffs = []
+            for k in range(12):                                                           # rising soot puffs, recycled in flicker()
+                e = glow(self.root, Vec3(x, 2, z), 3.0, color.rgba(255, 255, 255, 200), model='quad', texture='textures/smoke',
+                         billboard=True)
+                e.setTransparency(True)
+                puffs.append(e)
+            self.smoke.append((x, z, puffs, rng.uniform(0, 1), rng.uniform(-1, 1)))
+            self._rubble(x - 2.5, z + 2.0, rng, 5)
+        for _ in range(70):                                                              # where the dead mill about
+            ang = rng.choice((0, 1))
+            if ang:
+                self.crowd_spots.append((cx + rng.uniform(-6, 6), z0 - rng.uniform(8, length)))
+            else:
+                self.crowd_spots.append((cx + rng.choice((-1, 1)) * (self.width / 2 + BLOCK / 2 + rng.uniform(-14, 14)),
+                                         z0 - 6 - BLOCK / 2 - PITCH * rng.randint(0, 2) - BLOCK / 2 - ROAD_W / 2
+                                         + rng.uniform(-5, 5)))
 
     def _gate(self, rng):
         """The checkpoint: two guard towers either side of the road, wire fences, a bus across half of it."""
@@ -194,6 +239,12 @@ class Street:
         return self.bin.position
 
     def flicker(self, t):
+        for x, z, puffs, phase, drift in getattr(self, 'smoke', ()):                   # columns of smoke, leaning with the wind
+            for k, e in enumerate(puffs):
+                u = (t * 0.07 + phase + k / len(puffs)) % 1.0
+                e.position = Vec3(x + drift * 8 * u * u + 9 * u, 1.5 + 62 * u, z - 4 * u)
+                e.scale = 4.0 + 24 * u
+                e.color = color.rgba(255, 255, 255, int(185 * min(1.0, u * 8) * (1 - u) ** 0.9))
         for f, halo, phase in self.fires:
             k = 0.82 + 0.18 * math.sin(t * 9 + phase) + 0.08 * math.sin(t * 23 + phase * 2)
             f.scale = Vec3(0.5, 0.6, 0.5) * k

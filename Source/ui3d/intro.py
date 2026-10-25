@@ -1,7 +1,7 @@
 """Opening cutscene: the day the city fell (bright daylight, after the Zombie Barricades trailer).
 
-  1. ten seconds: five low on the ground, gliding in through a checkpoint gate and down the ruined street;
-     five from high above at an angle, over the autumn trees and the roofs to a rooftop helipad
+  1. ten seconds: five from high above at an angle, over burning blocks and the dead in the streets to a
+     rooftop helipad; then five low on the ground, gliding in through a checkpoint gate and down the ruined street
   2. a ruined street, burning barrels; the survivor sprints down it with the horde behind
   3. cornered, the cat kicks a street bin over, hops on it and the horde shuffles past
   4. it runs on top of the bin, rolling it down the street to the tower's lit doors, the horde on its heels
@@ -24,7 +24,7 @@ from .zombie import Horde, Zombie, available as zombies_available
 #      city   chase  hide   dash   title
 SHOTS = (10.0, 5.0, 4.6, 4.4, 4.2)
 FADE = 0.4
-SKY = (150, 196, 236)
+SKY = (150, 124, 104)
 LINES = ("The city fell in a single day.",
          "Whatever was left of it, they took.",
          "Anywhere they can't see you.",
@@ -74,6 +74,8 @@ class Intro:
         sun_np.setPos(self.cx - 60, self.bottom + 70, self.cz + 20)
         sun_np.lookAt(self.cx, self.bottom, self.street.z0 - 30)
         set_exposure(sun_np, 2.1, 1.9)
+        c = sun_np.node().getColor()                               # the light is orange through the smoke
+        sun_np.node().setColor((c[0], c[1] * 0.78, c[2] * 0.58, c[3]))
 
     # ---- the set ----
     def _world(self):
@@ -81,8 +83,8 @@ class Intro:
         rng = random.Random(4)
         cx, cz, b = self.cx, self.cz, self.bottom
         fog = Fog('smoke')
-        fog.setColor(0.70, 0.80, 0.90)
-        fog.setExpDensity(0.0022)
+        fog.setColor(0.60, 0.49, 0.41)
+        fog.setExpDensity(0.0036)
         self.root.setFog(fog)
         self.street = Street(cx, cz - self.d / 2 - 1.0, length=76, width=13)
         self.street.root.reparent_to(self.root)
@@ -113,7 +115,7 @@ class Intro:
     def _cast(self):
         """The survivor (the player's own model) and the horde."""
         self.hero = None
-        self.horde, self.figure, self.strays, self.guards = None, None, None, None
+        self.horde, self.figure, self.strays, self.guards, self.crowd = None, None, None, None, None
         if zombies_available():
             pts = []                                               # the dead, spread over the whole city
             for x, z in self.street.block_spots[:18]:
@@ -122,6 +124,7 @@ class Intro:
                 pts.append(Vec3(self.cx + random.uniform(-7, 7), self.bottom,
                                 self.street.z0 - random.uniform(10, 70)))
             self.strays = Horde(pts, parent=self.root, yaw=0)
+            self.crowd = Horde([Vec3(x, self.bottom, z) for x, z in self.street.crowd_spots], parent=self.root, scale=1.3)
             self.guards = Horde([Vec3(p.x, self.bottom, p.z) for p in self.street.gate_spots],
                                 parent=self.root, yaw=180)             # on watch at the checkpoint
             z0 = self.street.z0
@@ -152,6 +155,8 @@ class Intro:
             self.strays.update(dt * 0.6)
         if self.guards is not None:
             self.guards.update(dt * 0.5)
+        if self.crowd is not None:
+            self.crowd.update(dt * 0.6)
         if self.leaves:
             self._open_doors(_ease(min(1.0, max(0.0, (k - 0.5) / 0.4))) if i == 3 else
                              (1.0 - _ease(min(1.0, max(0.0, (k - 0.55) / 0.25))) if i == 4 else 0.0))
@@ -230,15 +235,15 @@ class Intro:
         cx, b, z0 = self.cx, self.bottom, self.street.z0
         bin_pos = self.bin0
         if i == 0:
-            if k < 0.5:   # low on the ground: through the checkpoint gate and down the street towards the tower
+            if k < 0.5:   # first from high above at an angle: smoking blocks, fires, the dead in the streets, ending on the helipad
                 u = k * 2
-                z = _lerp(self.street.gate_z - 9, self.street.gate_z + 36, u)
-                return (Vec3(_lerp(cx + 1.2, cx - 1.6, u), b + _lerp(3.4, 1.7, u), z),
-                        Vec3(cx - 0.4, b + _lerp(2.6, 2.0, u), z + 16))
-            u = (k - 0.5) * 2   # high and oblique over the city blocks, ending on the rooftop helipad
-            pad = self.street.pad
-            return (Vec3(_lerp(cx - 36, cx + 6, u), b + _lerp(44, 36, u), _lerp(z0 - 26, z0 - 56, u)),
-                    Vec3(_lerp(cx, pad.x, u), _lerp(b + 2, pad.y, u), _lerp(z0 - 58, pad.z, u)))
+                pad = self.street.pad
+                return (Vec3(_lerp(cx - 38, cx + 8, u), b + _lerp(48, 32, u), _lerp(z0 - 18, z0 - 56, u)),
+                        Vec3(_lerp(cx, pad.x, u), _lerp(b + 2, pad.y, u), _lerp(z0 - 58, pad.z, u)))
+            u = (k - 0.5) * 2   # then down on the ground: through the checkpoint gate and along the street towards the tower
+            z = _lerp(self.street.gate_z - 9, self.street.gate_z + 36, u)
+            return (Vec3(_lerp(cx + 1.2, cx - 1.6, u), b + _lerp(3.4, 1.7, u), z),
+                    Vec3(cx - 0.4, b + _lerp(2.6, 2.0, u), z + 16))
         if i == 1:      # down the street, the runner coming at us, ruins either side
             return (Vec3(cx + 5.2, b + 2.3, _lerp(z0 - 12, z0 - 17, k)),
                     Vec3(bin_pos.x + 2.5, b + 1.2, _lerp(z0 - 31, bin_pos.z - 3, k)))
@@ -308,6 +313,8 @@ class Intro:
             self.strays.destroy()
         if self.guards:
             self.guards.destroy()
+        if self.crowd:
+            self.crowd.destroy()
         if self.figure:
             self.figure.destroy()
         self.street.destroy()
