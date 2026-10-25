@@ -66,6 +66,10 @@ class Floor:
         lv = session.level                                      # elevators: one to leave, one we arrived in
         self.lift = None if self.roof else Lift(self.root, self.at(*lv.end), self._door_yaw(lv.end), True)
         self.arrival = Lift(self.root, self.at(*lv.start), self._door_yaw(lv.start), False) if index > 0 else None
+        self.lift_arrow = None
+        if self.lift:                                           # a big arrow floating over the lift we are heading for
+            self.lift_arrow = glow(self.root, self.at(*lv.end, Lift.H + 1.5), (0.7, 0.95, 0.7), color.rgb(255, 205, 90),
+                                   model=Cone(4), rotation_x=180)
 
     def _door_yaw(self, cell):
         """Doors face a neighbouring path cell (preferring the camera's side), so the block walks straight in."""
@@ -350,6 +354,9 @@ class Floor:
         """Per frame: bob and spin the goal arrow, blink the elevator's up arrow."""
         if self.lift:
             self.lift.arrow.color = color.rgb(255, 205, 90) if int(t * 2) % 2 else color.rgb(120, 90, 40)
+        if self.lift_arrow:
+            self.lift_arrow.y = self.base + Lift.H + 1.4 + 0.25 * math.sin(t * 3.2)
+            self.lift_arrow.rotation_y = t * 90
         if self.arrow:
             self.arrow.y = self.base + 1.55 + 0.12 * math.sin(t * 3)
             self.arrow.rotation_y = t * 90

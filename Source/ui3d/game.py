@@ -4,13 +4,13 @@ elevator. Arrows roll, Space swaps split cubes, R restarts the floor,
 Esc quits."""
 import math
 
-from ursina import Cone, Entity, Text, Vec3, application, camera, color, held_keys, time, window
+from ursina import Entity, Text, Vec3, application, camera, color, held_keys, time, window
 
 from engine import Tower
 from engine.problem import DIRS
 
 from .block import Block
-from .floor import Floor, glow
+from .floor import Floor
 from .liftscene import LiftScene
 from .intro import Intro
 from .world import FLOOR_H, aim_sun, move_lantern, point_camera
@@ -57,8 +57,6 @@ class TowerGame(Entity):
         self.panel = Entity(parent=camera.ui, model='quad', color=color.rgba(20, 26, 44, 190), z=1,
                             scale=(0.5, 0.17), position=window.top_left + Vec3(0.27, -0.095, 0))
         self._hud()
-        self.pointer = Entity(enabled=False)                 # a floating arrow over the player's head, towards the lift
-        glow(self.pointer, Vec3(0, 0, 0), (0.5, 0.9, 0.5), color.rgb(255, 205, 90), model=Cone(3), rotation_x=90)
         self.elev = LiftScene(self.sun)                      # the lift cutscene, shown while the car climbs
         self.intro = Intro(self.floor, self.tower.count, *self._camera_for(self.floor))
         self.intro.light(self.sun)
@@ -149,28 +147,9 @@ class TowerGame(Entity):
         if self.tower.session.won:
             self.phase, self.t = 'close', 0.0
 
-    def _point(self):
-        """Keep the arrow over the active piece, turned towards the goal cell (the lift, or the helipad)."""
-        s = self.tower.session
-        pieces = self.block.pieces
-        if self.phase not in ('play', 'roll') or not pieces or s.won:
-            self.pointer.enabled = False
-            return
-        st = s.state
-        p = pieces[st.active if st.split and st.active < len(pieces) else 0].position
-        goal = self.floor.at(*s.level.end)
-        dx, dz = goal.x - p.x, goal.z - p.z
-        if math.hypot(dx, dz) < 1.4:                          # standing at the door already
-            self.pointer.enabled = False
-            return
-        self.pointer.enabled = True
-        self.pointer.position = Vec3(p.x, self.floor.base + 3.0 + 0.12 * math.sin(time.time() * 3.2), p.z)
-        self.pointer.rotation_y = math.degrees(math.atan2(dx, dz))
-
     # ---- per frame ----
     def update(self):
         dt = time.dt
-        self._point()
         self.block.tick(dt, self.phase == 'play')
         self.floor.animate(time.time())
         if self.phase in ('play', 'roll'):                    # camera and lantern follow the player smoothly
