@@ -205,7 +205,7 @@ class Intro:
                     cat.root.rotation_y = 90
                     cat.show('Run_F', 1 if f < 0.5 else 4)
                 else:                                              # up onto the fallen bin
-                    f = _ease((k - 0.60) / 0.22)
+                    f = _ease(min(1.0, (k - 0.60) / 0.22))
                     top = Vec3(st.bin.x, st.bin_r * 2, st.bin.z)
                     cat.root.position = Vec3(_lerp(bx + 1.7, top.x, f), b + _lerp(0, top.y, f) + 1.3 * math.sin(math.pi * f), _lerp(bz, top.z, f))
                     cat.root.rotation_y = _lerp(90, 180, _ease((k - 0.7) / 0.3)) if k > 0.7 else 90
@@ -221,8 +221,8 @@ class Intro:
             st.bin_spin.rotation_x = -math.degrees((z - rest.z) / st.bin_r)       # rolls as it travels
             if cat:
                 cat.root.enabled = True
-                d = _ease(max(0.0, (k - 0.72) / 0.25))             # the door is lower than cat + bin: it hops off ahead of it
-                cat.root.position = Vec3(x, b + st.bin_r * 2 * (1 - d) + 0.9 * math.sin(math.pi * d), z + 2.4 * d)
+                cat.root.scale = 0.72                              # low enough to clear the door on the bin
+                cat.root.position = Vec3(x, b + st.bin_r * 2, z)
                 cat.root.rotation_y = 180                          # running towards the doors, on top
                 cat.pose(self.t * 3.2, True)
             self.horde.update(dt, cat.root.position if cat else None, speed=2.6, stop_at=7.0)
@@ -236,7 +236,8 @@ class Intro:
             st.bin.enabled = vis
             if cat:
                 cat.root.enabled = vis
-                cat.root.position = Vec3(self.door.x, b, z + 2.4 + 2.0 * run)    # the cat runs in first, the bin rolls after it
+                cat.root.scale = 0.72
+                cat.root.position = Vec3(self.door.x, b + st.bin_r * 2, z)
                 cat.root.rotation_y = 180
                 cat.pose(self.t * 3.2, True)
             self.horde.set_lunge(min(1.0, k * 1.6))
