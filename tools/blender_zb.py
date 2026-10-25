@@ -39,6 +39,8 @@ for name, tex in sorted(index.items()):
     bsdf = mat.node_tree.nodes['Principled BSDF']
     bsdf.inputs['Metallic'].default_value = 0.0
     bsdf.inputs['Roughness'].default_value = 0.95
+    if 'Emission Color' in bsdf.inputs:                           # some sources carry white emission at strength 0,
+        bsdf.inputs['Emission Color'].default_value = (0, 0, 0, 1)   # which Panda reads as glowing
     if tex and os.path.exists(os.path.join(SRC, tex + '.png')):
         node = mat.node_tree.nodes.new('ShaderNodeTexImage')
         node.image = bpy.data.images.load(os.path.join(SRC, tex + '.png'))

@@ -18,6 +18,7 @@ from pathlib import Path
 
 import numpy as np
 import UnityPy
+from PIL import Image
 from UnityPy.helpers.MeshHelper import MeshHandler
 
 data, cat, out, *clips = sys.argv[1:]
@@ -243,7 +244,11 @@ if os.environ.get('TEXTURE'):
                 break
 if tex:
     img = tex.image.convert('RGBA')                 # a flat palette: a small nearest-neighbour copy is enough
-    img.resize((128, 128), 0).save(out / (tex.m_Name + '.png'))
+    img = img.resize((128, 128), 0)
+    gain = float(os.environ.get('TEXTURE_GAIN', '1'))        # the scene lights are strong: a white skin needs dimming
+    if gain != 1:
+        img = Image.merge('RGBA', (*[c.point(lambda v: int(v * gain)) for c in img.split()[:3]], img.split()[3]))
+    img.save(out / (tex.m_Name + '.png'))
 index_json = {}
 
 
