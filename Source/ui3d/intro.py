@@ -15,7 +15,7 @@ import random
 
 from ursina import Entity, Text, Vec3, camera, color, destroy, window
 
-from .floor import prop
+from .floor import box, glow, prop
 from .street import Street
 from .world import ASSETS, floor_y, point_camera, set_exposure
 from .zombie import Horde, Zombie, available as zombies_available
@@ -48,6 +48,7 @@ class Intro:
         self.end_pos, self.end_target = end_pos, end_target
         self.door = Vec3(self.cx, self.bottom, self.cz - self.d / 2 - 1.2)   # just outside the entrance
         self.root = Entity()
+        self.leaves = []
         self._world()
         self._cast()
         self.overlay = Entity(parent=camera.ui, model='quad', scale=(4, 2), color=color.rgba(0, 0, 0, 0), z=-1)
@@ -86,7 +87,25 @@ class Intro:
         self.street.root.reparent_to(self.root)
         self.street.root.y = b
         if (ASSETS / 'models' / 'tower.glb').exists():
-            prop(self.root, 'tower', Vec3(cx, b, cz), 0, 1)
+            tower = prop(self.root, 'tower', Vec3(cx, b, cz), 0, 1)
+            self._doors(tower)
+
+    def _doors(self, tower):
+        """Two glass leaves over the tower's lit entrance (which is part of the model) that slide apart, with a
+        dim lobby behind them. The entrance is 2.4 wide and 1.8 high, its glass 1.5 behind the canopy's front."""
+        m = tower.children[0].model_bounds
+        z = self.cz + (m.start.z + 1.5 - 0.06) - m.center.z                     # the glass plane, in world z
+        y = self.bottom + 0.1
+        self.door_z = z
+        box(self.root, Vec3(self.cx, y + 0.9, z - 0.03), (2.4, 1.8, 0.02), color.rgb(70, 48, 30))   # the lobby
+        glow(self.root, Vec3(self.cx, y + 1.7, z - 0.06), (2.2, 0.06, 0.02), color.rgb(255, 214, 140))
+        self.leaves = [glow(self.root, Vec3(self.cx + side * 0.3, y + 0.9, z - 0.09), (1.2, 1.8, 0.04),
+                            color.rgb(255, 228, 150)) for side in (-1, 1)]
+        self._leaf_open = 0.0
+
+    def _open_doors(self, v):
+        for i, leaf in enumerate(self.leaves):
+            leaf.x = self.cx + (-1 if i == 0 else 1) * (0.6 + 1.2 * v)
 
     def _cast(self):
         """The survivor (the player's own model) and the horde."""
@@ -142,6 +161,9 @@ class Intro:
             self.strays.update(dt * 0.6)
         if self.guards is not None:
             self.guards.update(dt * 0.5)
+        if self.leaves:
+            self._open_doors(_ease(min(1.0, max(0.0, (k - 0.5) / 0.4))) if i == 3 else
+                             (1.0 - _ease(min(1.0, max(0.0, (k - 0.55) / 0.25))) if i == 4 else 0.0))
         if i == 0:                                                 # the fly-over: nobody is acting yet
             if self.figure:
                 self.figure.root.enabled = False
