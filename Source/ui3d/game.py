@@ -81,12 +81,13 @@ class TowerGame(Entity):
         return Vec3(p.x, floor.base, p.z)
 
     def _camera_for(self, floor, focus=None):
-        """Closer, lower camera (about 52 degrees) that keeps the player in frame and some of the level."""
+        """A far, steep camera (about 60 degrees, like Rolling Cat) that keeps the whole floor in view and
+        only leans a little towards the player."""
         focus = focus if focus is not None else self._player_pos(floor)
         c = floor.centre
-        target = Vec3(c.x * 0.45 + focus.x * 0.55, floor.base + 0.6, c.z * 0.45 + focus.z * 0.55)
-        dist = max(11.0, min(21.0, floor.span * 0.95 + 6.0))
-        return target + Vec3(0, dist * 0.78, -dist * 0.62), target
+        target = Vec3(c.x * 0.8 + focus.x * 0.2, floor.base + 0.4, c.z * 0.8 + focus.z * 0.2)
+        dist = max(20.0, min(40.0, floor.span * 1.35 + 12.0))
+        return target + Vec3(0, dist * 0.87, -dist * 0.5), target
 
     def _aim(self, floor):
         pos, target = self._camera_for(floor)
