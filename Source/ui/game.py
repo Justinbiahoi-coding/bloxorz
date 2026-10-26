@@ -8,6 +8,9 @@ from . import blockfx, building, rooftop, sprites
 
 
 MAX_TILE = 112
+FALL_MS = 520
+WIN_DROP_MS = 420
+WIN_LINGER_MS = 900
 _TILE_TEXTURE = {'floor': 'concrete', 'goal': 'concrete', 'soft': 'concrete', 'heavy': 'concrete',
                  'split': 'concrete', 'fragile': 'fragile', 'bridge_open': 'steel'}
 
@@ -26,7 +29,8 @@ class Game:
     """Pygame view/controller for an engine GameSession."""
 
     def __init__(self, surface, W_HEIGHT_SIZE, W_WIDTH_SIZE, session,
-                 show_hint=False, background=None, tile=None, scene=None):
+                 show_hint=False, background=None, tile=None, scene=None,
+                 free_play=False, has_next=False):
         self.surface = surface
         self.W_HEIGHT_SIZE = W_HEIGHT_SIZE
         self.W_WIDTH_SIZE = W_WIDTH_SIZE
@@ -39,7 +43,8 @@ class Game:
         # drawing: small maps are zoomed in (up to MAX_TILE), the biggest one just fits; board centred
         xs, ys = [x for x, _ in self.level.kinds], [y for _, y in self.level.kinds]
         span = max(max(xs) - min(xs), max(ys) - min(ys)) + 1 + (4 if scene else 0)   # keep two tiles of building in view
-        self.square_size = tile or min(MAX_TILE, int(min(W_WIDTH_SIZE - 280, W_HEIGHT_SIZE - 140) / span))
+        max_tile = int(MAX_TILE * max(1.0, min(2.5, W_HEIGHT_SIZE / 720)))
+        self.square_size = tile or min(max_tile, int(min(W_WIDTH_SIZE - 280, W_HEIGHT_SIZE - 140) / span))
         self.starting_x = self.CENTER_X - (min(xs) + max(xs) + 1) / 2 * self.square_size
         self.starting_y = self.CENTER_Y - (min(ys) + max(ys) + 1) / 2 * self.square_size
         self.ending_x = self.starting_x + self.level.size * self.square_size
@@ -65,10 +70,31 @@ class Game:
         self.font = pygame.font.Font(None, 50)
         self.ESC = False
         self.show_hint = show_hint
+        self.free_play = free_play
+        self.has_next = has_next
+        self.result = None
+        self.command = None
+        self.fall = None
+        self.win_pending = False
+        self.win_phase = None
+        self.win_drop_start = None
+        self.win_hold_until = None
+        self._result_buttons = []
+        self.ui_scale = max(1.0, min(2.5, W_HEIGHT_SIZE / 720))
+        self.result_title_font = pygame.font.Font(None, int(58 * self.ui_scale))
+        self.result_text_font = pygame.font.Font(None, int(30 * self.ui_scale))
+        self.result_button_font = pygame.font.Font(None, int(32 * self.ui_scale))
 
     def process(self, events):
-        self.process_input(events)
+        if self.result is not None:
+            self.process_result_input(events)
+        elif self.fall is None and not self.win_pending:
+            self.process_input(events)
+        self.update_fall()
+        self.update_win()
         self.draw()
+        if self.result is not None:
+            self.draw_result()
         self.process_end()
 
     def process_input(self, events):
@@ -77,14 +103,38 @@ class Game:
                 continue
 
             if not self.session.won and event.key in _MOVE_KEYS:
-                before, action = self.session.state, _MOVE_KEYS[event.key]
-                if self.session.move(action):
-                    self.start_roll(before, self.session.state, action)
-            elif (not self.session.won and event.key == pygame.K_h
-                  and self.session.hint is None):
+                action = _MOVE_KEYS[event.key]
+                status, before, after = self.session.attempt_move(action)
+                if status == 'fell':
+                    if self.free_play:
+                        self.start_fall(before, action)
+                    continue
+                self.start_roll(before, after, action)
+                if status == 'won' and self.free_play:
+                    self.win_pending = True
+                    self.win_phase = 'roll'
+                    self.block_scale = 1.0
+            elif (self.show_hint and not self.session.won
+                  and event.key == pygame.K_h and self.session.hint is None):
                 self.session.request_hint()
             elif event.key == pygame.K_ESCAPE:
                 self.ESC = True
+
+    def process_result_input(self, events):
+        for event in events:
+            if event.type == pygame.KEYDOWN:
+                if (event.key in (pygame.K_n, pygame.K_RETURN, pygame.K_KP_ENTER)
+                        and self.result == 'win' and self.has_next):
+                    self.command = 'next'
+                elif event.key == pygame.K_r:
+                    self.command = 'retry'
+                elif event.key == pygame.K_ESCAPE:
+                    self.command = 'menu'
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                for rect, command in self._result_buttons:
+                    if rect.collidepoint(event.pos):
+                        self.command = command
+                        break
 
     def _boxes(self, state):
         cells = self.session.block_cells(state)
@@ -102,11 +152,54 @@ class Game:
         if blockfx.rolls_to(start, DIRS[action], end):
             self.anim = blockfx.start_roll(start, DIRS[action], idx, pygame.time.get_ticks())
 
+    def start_fall(self, before, action):
+        boxes = self._boxes(before)
+        idx = before.active if before.split else 0
+        start = boxes[idx]
+        self.anim = None
+        self.fall = {
+            'idx': idx,
+            'start': start,
+            'end': blockfx.rolled_box(start, DIRS[action]),
+            'd': DIRS[action],
+            't0': pygame.time.get_ticks(),
+        }
+
+    def update_fall(self):
+        if self.fall is None:
+            return
+        if pygame.time.get_ticks() - self.fall['t0'] >= FALL_MS:
+            self.fall = None
+            if self.free_play:
+                self.result = 'lose'
+
+    def update_win(self):
+        if not self.win_pending:
+            return
+        now = pygame.time.get_ticks()
+        if self.win_phase == 'roll':
+            if self.anim is not None:
+                return
+            self.win_phase = 'drop'
+            self.win_drop_start = now
+        if self.win_phase == 'drop':
+            p = min(1.0, (now - self.win_drop_start) / WIN_DROP_MS)
+            e = p * p * (3 - 2 * p)
+            self.block_scale = max(0.0, 1 - e)
+            if p >= 1:
+                self.win_phase = 'linger'
+                self.win_hold_until = now + WIN_LINGER_MS
+            return
+        if self.win_phase == 'linger' and now >= self.win_hold_until:
+            self.win_pending = False
+            self.win_phase = None
+            self.result = 'win'
+
     def set_state(self, state, increment_moves=True):
         self.session.set_state(state, increment_moves)
 
     def process_end(self):
-        if not self.session.won:
+        if self.free_play or not self.session.won:
             return
 
         if self.session.moves > 0:
@@ -159,7 +252,27 @@ class Game:
         return self._veil
 
     def draw_block(self):
-        boxes, roll, now = self._boxes(self.session.state), None, pygame.time.get_ticks()
+        if self.result == 'lose':
+            return
+        boxes, now = self._boxes(self.session.state), pygame.time.get_ticks()
+        if self.fall is not None:
+            p = min(1.0, (now - self.fall['t0']) / FALL_MS)
+            e = p * p * (3 - 2 * p)
+            idx = self.fall['idx']
+            s, t, d = self.fall['start'], self.fall['end'], self.fall['d']
+            box = (s[0] + (t[0] - s[0]) * e, s[1] + (t[1] - s[1]) * e,
+                   s[2], s[3], s[4])
+            for i in sorted((i for i in range(len(boxes)) if i != idx), key=lambda i: boxes[i][1]):
+                blockfx.draw_box(self.surface, boxes[i], (self.starting_x, self.starting_y),
+                                 self.square_size, scale=self.block_scale,
+                                 ring=self.session.is_split and i == self.session.active)
+            blockfx.draw_box(
+                self.surface, box,
+                (self.starting_x, self.starting_y + e * e * self.square_size * 3),
+                self.square_size, (d, e * math.pi / 2), max(0.0, 1 - 0.7 * e))
+            return
+
+        roll = None
         if self.anim:
             p = blockfx.progress(self.anim, now)
             if p >= 1:
@@ -167,9 +280,12 @@ class Game:
             else:
                 boxes[self.anim.idx] = self.anim.box
                 roll = (self.anim.d, (p * p * (3 - 2 * p)) * math.pi / 2)
+        origin_y = self.starting_y
+        if self.free_play and self.win_pending:
+            origin_y += (1 - self.block_scale) * self.square_size * 2
         order = sorted(range(len(boxes)), key=lambda i: boxes[i][1])       # northern pieces first
         for i in order:
-            blockfx.draw_box(self.surface, boxes[i], (self.starting_x, self.starting_y), self.square_size,
+            blockfx.draw_box(self.surface, boxes[i], (self.starting_x, origin_y), self.square_size,
                              roll if self.anim and i == self.anim.idx else None, self.block_scale,
                              ring=self.session.is_split and i == self.session.active)
 
@@ -203,6 +319,64 @@ class Game:
             text_rect = text.get_rect(
                 center=(self.W_WIDTH_SIZE / 2, self.W_HEIGHT_SIZE - 35))
             self.surface.blit(text, text_rect)
+
+    def draw_result(self):
+        k = self.ui_scale
+        w, h = self.W_WIDTH_SIZE, self.W_HEIGHT_SIZE
+        shade = pygame.Surface((w, h), pygame.SRCALPHA)
+        shade.fill((8, 12, 28, 170))
+        self.surface.blit(shade, (0, 0))
+
+        if self.result == 'win':
+            options = []
+            if self.has_next:
+                options.append(('Next Level', 'next'))
+            options.extend((('Retry', 'retry'), ('Main Menu', 'menu')))
+        else:
+            options = [('Retry', 'retry'), ('Main Menu', 'menu')]
+
+        button_w, button_h, gap = int(340 * k), int(54 * k), int(14 * k)
+        start_y = int(140 * k)
+        panel_w = int(540 * k)
+        panel_h = start_y + len(options) * (button_h + gap) + int(70 * k)
+        panel = pygame.Rect(0, 0, panel_w, panel_h)
+        panel.center = (w // 2, h // 2)
+        pygame.draw.rect(self.surface, (24, 32, 58), panel, border_radius=int(22 * k))
+        pygame.draw.rect(self.surface, (255, 200, 87), panel, 2, border_radius=int(22 * k))
+
+        if self.result == 'win':
+            title = 'ALL LEVELS CLEARED' if not self.has_next else 'LEVEL CLEARED'
+            color = (255, 200, 87)
+        else:
+            title = 'YOU FELL'
+            color = (255, 138, 91)
+        image = self.result_title_font.render(title, True, color)
+        self.surface.blit(image, image.get_rect(center=(panel.centerx, panel.y + int(50 * k))))
+        subtitle = 'Level {}  -  {} moves'.format(self.session.level_number, self.session.moves)
+        image = self.result_text_font.render(subtitle, True, (230, 226, 216))
+        self.surface.blit(image, image.get_rect(center=(panel.centerx, panel.y + int(100 * k))))
+
+        self._result_buttons = []
+        mouse = pygame.mouse.get_pos()
+        y = panel.y + start_y
+        for label, command in options:
+            rect = pygame.Rect(0, 0, button_w, button_h)
+            rect.center = (panel.centerx, y + button_h // 2)
+            hover = rect.collidepoint(mouse)
+            pygame.draw.rect(self.surface, (255, 200, 87) if hover else (44, 58, 94),
+                             rect, border_radius=int(12 * k))
+            image = self.result_button_font.render(
+                label, True, (27, 37, 64) if hover else (250, 244, 232))
+            self.surface.blit(image, image.get_rect(center=rect.center))
+            self._result_buttons.append((rect, command))
+            y += button_h + gap
+
+        if self.result == 'win' and self.has_next:
+            hint = 'N next    R retry    Esc menu'
+        else:
+            hint = 'R retry    Esc menu'
+        image = self.result_text_font.render(hint, True, (190, 196, 216))
+        self.surface.blit(image, image.get_rect(center=(panel.centerx, panel.bottom - int(32 * k))))
 
     def should_quit(self):
         return self.ESC

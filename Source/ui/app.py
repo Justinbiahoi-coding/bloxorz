@@ -30,16 +30,20 @@ class App:
 
     def __init__(self):
         os.environ.setdefault('SDL_VIDEO_CENTERED', '1')
+        # use the real X11 mode instead of the scaled logical desktop, so fullscreen opens once at its final size
+        os.environ.setdefault('SDL_VIDEO_X11_XRANDR', '0')
         os.environ.setdefault('SDL_VIDEO_MAC_FULLSCREEN_SPACES', '1')   # macOS: fullscreen as its own Space, so Cmd+Tab and swipes still work
         pygame.init()
 
         self.clock = pygame.time.Clock()
-        # open fullscreen once to learn the real usable size (macOS keeps the notch strip), then reopen
-        # GPU-scaled with vsync at exactly that size, so there are no black bars
-        size = pygame.display.set_mode((0, 0), pygame.FULLSCREEN).get_size()
-        pygame.display.quit()                  # a SCALED window cannot replace a plain one; start the display over
-        pygame.display.init()
-        self.surface = pygame.display.set_mode(size, pygame.FULLSCREEN | pygame.SCALED, vsync=1)
+        try:
+            self.surface = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        except pygame.error:
+            width, height = pygame.display.get_desktop_sizes()[0]
+            self.surface = pygame.display.set_mode(
+                (int(width * 0.9), int(height * 0.82)), pygame.RESIZABLE)
+        pygame.event.pump()
+        self.surface = pygame.display.get_surface()
         self.w, self.h = self.surface.get_size()
         pygame.display.set_caption('Bloxorz Tower')
 
@@ -61,17 +65,19 @@ class App:
         self._build_menus()
 
     def _make_theme(self, background_color):
+        k = max(1.0, min(3.0, self.h / 720))
         theme = pygame_menu.themes.THEME_DEFAULT.copy()
         theme.background_color = background_color
         theme.surface_clear_color = COLOR_BACKGROUND
         theme.title_background_color = (120, 45, 30)
         theme.title_font = pygame_menu.font.FONT_NEVIS
         theme.title_font_color = (255, 255, 255)
-        theme.title_font_size = 50
+        theme.title_font_size = int(50 * k)
         theme.widget_font = pygame_menu.font.FONT_FRANCHISE
         theme.widget_font_color = (255, 255, 255)
-        theme.widget_font_size = 36
-        theme.widget_margin = (0, 8)
+        theme.widget_font_size = int(36 * k)
+        theme.widget_margin = (0, int(8 * k))
+        theme.widget_padding = (int(4 * k), int(8 * k))
         return theme
 
     def _build_menus(self):
@@ -138,13 +144,26 @@ class App:
     def _on_algorithm_change(self, value, *args, **kwargs):
         self.algorithm = self._selected_option_value(value)
 
-    def _start_free_play(self):
+    def _start_free_play(self, level_number=None):
+        if level_number is not None:
+            self.map_number = level_number
         self.menu.disable()
         self.surface.fill(COLOR_BACKGROUND)
         session = GameSession(self.map_number)
-        self.game = Game(self.surface, self.h, self.w, session, True)
+        self.game = Game(self.surface, self.h, self.w, session,
+                         show_hint=False, free_play=True,
+                         has_next=self._next_level_number(self.map_number) is not None)
         self.state = STATE_INGAME
         self._play_music()
+
+    def _next_level_number(self, level_number):
+        try:
+            index = self.level_numbers.index(level_number)
+        except ValueError:
+            return None
+        if index + 1 < len(self.level_numbers):
+            return self.level_numbers[index + 1]
+        return None
 
     def _start_tower(self):
         self.menu.disable()
@@ -174,7 +193,15 @@ class App:
     def _update(self, events, deltatime):
         if self.state == STATE_INGAME:
             self.game.process(events)
-            if self.game.should_quit():
+            if self.game.command == 'menu':
+                self._return_to_menu()
+            elif self.game.command == 'retry':
+                self._start_free_play(self.game.session.level_number)
+            elif self.game.command == 'next':
+                next_level = self._next_level_number(self.game.session.level_number)
+                if next_level is not None:
+                    self._start_free_play(next_level)
+            elif self.game.should_quit():
                 self._return_to_menu()
         elif self.state == STATE_TOWER:
             self.tower.process(events)
