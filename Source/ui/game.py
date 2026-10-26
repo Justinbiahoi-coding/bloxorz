@@ -1,4 +1,5 @@
 import math
+import textwrap
 
 import pygame
 
@@ -30,7 +31,7 @@ class Game:
 
     def __init__(self, surface, W_HEIGHT_SIZE, W_WIDTH_SIZE, session,
                  show_hint=False, background=None, tile=None, scene=None,
-                 free_play=False, has_next=False):
+                 free_play=False, has_next=False, tip=None):
         self.surface = surface
         self.W_HEIGHT_SIZE = W_HEIGHT_SIZE
         self.W_WIDTH_SIZE = W_WIDTH_SIZE
@@ -72,6 +73,7 @@ class Game:
         self.show_hint = show_hint
         self.free_play = free_play
         self.has_next = has_next
+        self.tip = tip
         self.result = None
         self.command = None
         self.fall = None
@@ -219,6 +221,7 @@ class Game:
         self.draw_map()
         self.draw_block()
         self.draw_hint()
+        self.draw_tutorial_tip()
 
     def cell_rect(self, x, y):
         sq = self.square_size
@@ -319,6 +322,31 @@ class Game:
             text_rect = text.get_rect(
                 center=(self.W_WIDTH_SIZE / 2, self.W_HEIGHT_SIZE - 35))
             self.surface.blit(text, text_rect)
+
+    def draw_tutorial_tip(self):
+        if not self.tip or self.result is not None or self.fall is not None or self.win_pending:
+            return
+        k = self.ui_scale
+        max_width = min(int(self.W_WIDTH_SIZE * 0.75), int(1200 * k))
+        char_width = max(1, self.result_text_font.size('M')[0])
+        lines = textwrap.wrap(self.tip, width=max(24, max_width // char_width))
+        images = [self.result_text_font.render(line, True, (250, 244, 232))
+                  for line in lines]
+        line_height = max(image.get_height() for image in images)
+        pad_x, pad_y = int(24 * k), int(14 * k)
+        panel = pygame.Rect(0, 0, max(image.get_width() for image in images) + 2 * pad_x,
+                            len(images) * line_height + 2 * pad_y)
+        panel.midtop = (self.W_WIDTH_SIZE // 2, int(24 * k))
+        layer = pygame.Surface(panel.size, pygame.SRCALPHA)
+        pygame.draw.rect(layer, (24, 32, 58, 210), layer.get_rect(),
+                         border_radius=int(16 * k))
+        pygame.draw.rect(layer, (255, 200, 87, 220), layer.get_rect(), 2,
+                         border_radius=int(16 * k))
+        self.surface.blit(layer, panel.topleft)
+        y = panel.y + pad_y
+        for image in images:
+            self.surface.blit(image, image.get_rect(midtop=(panel.centerx, y)))
+            y += line_height
 
     def draw_result(self):
         k = self.ui_scale

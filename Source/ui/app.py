@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from pathlib import Path
@@ -24,6 +25,27 @@ STATE_TOWER = 'TOWER'
 STATE_VIEWING_STATS = 'VIEWING_STATS_ALGORITHM'
 STATE_VIEWING_ALGORITHM = 'VIEWING_ALGORITHM'
 
+ADVANCED_TILES = set('fshvlrkq')
+TUTORIAL_LEVELS = (54, 55, 56, 57)
+TUTORIAL_NAMES = {
+    54: 'Tutorial 1 - Fragile',
+    55: 'Tutorial 2 - Bridges',
+    56: 'Tutorial 3 - Heavy Switch',
+    57: 'Tutorial 4 - Split',
+}
+TUTORIAL_TIPS = {
+    54: 'Fragile tiles break under a standing block. Roll across them lying down.',
+    55: 'Soft switches open bridges. Closed bridges behave like void cells.',
+    56: 'Heavy switches activate only when the full block stands upright on them.',
+    57: 'Split switches divide the block into two cubes. Press SPACE to switch cubes, then bring them together to merge.',
+}
+
+
+def has_advanced_tiles(level_number):
+    data = json.loads(
+        (BASE_DIR / 'levels' / '{}.json'.format(level_number)).read_text(encoding='utf-8'))
+    return bool(set(''.join(data.get('tiles', []))) & ADVANCED_TILES)
+
 
 class App:
     """Pygame UI layer. Owns the window, menus and screen state machine."""
@@ -49,9 +71,29 @@ class App:
 
         self.level_numbers = sorted(
             int(path.stem) for path in (BASE_DIR / 'levels').glob('*.json'))
-        self.map_menu_array = [(str(number), number)
-                               for number in self.level_numbers]
-        self.map_number = self.level_numbers[0] if self.level_numbers else 1
+        advanced_flags = {number: has_advanced_tiles(number)
+                          for number in self.level_numbers}
+        tutorials = [number for number in TUTORIAL_LEVELS
+                     if number in self.level_numbers]
+        self.normal_levels = [number for number in self.level_numbers
+                              if not advanced_flags[number]]
+        self.advanced_levels = tutorials + [
+            number for number in self.level_numbers
+            if advanced_flags[number] and number not in tutorials]
+        if not self.normal_levels:
+            self.normal_levels = list(self.level_numbers)
+
+        self.play_mode = 'normal'
+        self.play_levels = self.normal_levels
+        self.free_play_level = self.play_levels[0] if self.play_levels else 1
+        self.algorithm_mode = 'normal'
+        self.algorithm_levels = self.normal_levels
+        self.algorithm_level = self.algorithm_levels[0] if self.algorithm_levels else 1
+        self.mode_selector = None
+        self.free_map_selector = None
+        self.algorithm_mode_selector = None
+        self.algorithm_map_selector = None
+        self.map_hint_label = None
         self.algorithm = 'DFS'
 
         self.state = STATE_MENU
@@ -98,9 +140,17 @@ class App:
             theme=self._make_theme((30, 50, 107)),
             onclose=pygame_menu.events.NONE,
         )
-        self.free_play_menu.add.selector(
-            'Map', self.map_menu_array,
-            onreturn=None, onchange=self._on_map_change)
+        self.mode_selector = self.free_play_menu.add.selector(
+            'Mode',
+            [('Normal', 'normal'), ('Advanced', 'advanced')],
+            onreturn=None, onchange=self._on_mode_change)
+        self.free_map_selector = self.free_play_menu.add.selector(
+            'Map', self._map_items(self.play_levels),
+            onreturn=None, onchange=self._on_free_map_change)
+        self.map_hint_label = self.free_play_menu.add.label(
+            '', max_char=70, wordwrap=True,
+            font_size=int(22 * max(1.0, min(3.0, self.h / 720))))
+        self._refresh_map_hint()
         self.free_play_menu.add.button('Start', self._start_free_play)
         self.free_play_menu.add.button(
             'Return to Menu', pygame_menu.events.BACK)
@@ -113,9 +163,13 @@ class App:
             theme=self._make_theme((27, 90, 26)),
             onclose=pygame_menu.events.NONE,
         )
-        self.algorithms_select_menu.add.selector(
-            'Map', self.map_menu_array,
-            onreturn=None, onchange=self._on_map_change)
+        self.algorithm_mode_selector = self.algorithms_select_menu.add.selector(
+            'Mode',
+            [('Normal', 'normal'), ('Advanced', 'advanced')],
+            onreturn=None, onchange=self._on_algorithm_mode_change)
+        self.algorithm_map_selector = self.algorithms_select_menu.add.selector(
+            'Map', self._map_items(self.algorithm_levels),
+            onreturn=None, onchange=self._on_algorithm_map_change)
         self.algorithms_select_menu.add.selector(
             'Algorithm',
             [(name, name) for name in ALGORITHM_NAMES],
@@ -138,31 +192,94 @@ class App:
             value = value[0]
         return value[1]
 
-    def _on_map_change(self, value, *args, **kwargs):
-        self.map_number = self._selected_option_value(value)
+    def _map_label(self, level_number):
+        return TUTORIAL_NAMES.get(level_number, 'Level {}'.format(level_number))
+
+    def _map_items(self, levels):
+        return [(self._map_label(number), number) for number in levels]
+
+    def _refresh_map_hint(self):
+        if self.map_hint_label is None:
+            return
+        tip = TUTORIAL_TIPS.get(self.free_play_level)
+        if tip:
+            self.map_hint_label.set_title(tip)
+            self.map_hint_label.show()
+        else:
+            self.map_hint_label.set_title('')
+            self.map_hint_label.hide()
+
+    def _set_play_mode(self, mode, level_number=None):
+        if mode not in ('normal', 'advanced'):
+            mode = 'normal'
+        levels = self.advanced_levels if mode == 'advanced' else self.normal_levels
+        if not levels:
+            levels = list(self.level_numbers)
+        if level_number not in levels:
+            level_number = levels[0] if levels else 1
+        self.play_mode = mode
+        self.play_levels = levels
+        self.free_play_level = level_number
+        if self.mode_selector is not None:
+            self.mode_selector.set_value(0 if mode == 'normal' else 1)
+        if self.free_map_selector is not None:
+            self.free_map_selector.update_items(self._map_items(levels))
+            self.free_map_selector.set_value(levels.index(level_number))
+        self._refresh_map_hint()
+
+    def _on_mode_change(self, value, *args, **kwargs):
+        self._set_play_mode(self._selected_option_value(value))
+
+    def _on_free_map_change(self, value, *args, **kwargs):
+        self.free_play_level = self._selected_option_value(value)
+        self._refresh_map_hint()
+
+    def _set_algorithm_mode(self, mode, level_number=None):
+        if mode not in ('normal', 'advanced'):
+            mode = 'normal'
+        levels = self.advanced_levels if mode == 'advanced' else self.normal_levels
+        if not levels:
+            levels = list(self.level_numbers)
+        if level_number not in levels:
+            level_number = levels[0] if levels else 1
+        self.algorithm_mode = mode
+        self.algorithm_levels = levels
+        self.algorithm_level = level_number
+        if self.algorithm_mode_selector is not None:
+            self.algorithm_mode_selector.set_value(0 if mode == 'normal' else 1)
+        if self.algorithm_map_selector is not None:
+            self.algorithm_map_selector.update_items(self._map_items(levels))
+            self.algorithm_map_selector.set_value(levels.index(level_number))
+
+    def _on_algorithm_mode_change(self, value, *args, **kwargs):
+        self._set_algorithm_mode(self._selected_option_value(value))
+
+    def _on_algorithm_map_change(self, value, *args, **kwargs):
+        self.algorithm_level = self._selected_option_value(value)
 
     def _on_algorithm_change(self, value, *args, **kwargs):
         self.algorithm = self._selected_option_value(value)
 
     def _start_free_play(self, level_number=None):
         if level_number is not None:
-            self.map_number = level_number
+            self.free_play_level = level_number
         self.menu.disable()
         self.surface.fill(COLOR_BACKGROUND)
-        session = GameSession(self.map_number)
+        session = GameSession(self.free_play_level)
         self.game = Game(self.surface, self.h, self.w, session,
                          show_hint=False, free_play=True,
-                         has_next=self._next_level_number(self.map_number) is not None)
+                         has_next=self._next_level_number(self.free_play_level) is not None,
+                         tip=TUTORIAL_TIPS.get(self.free_play_level))
         self.state = STATE_INGAME
         self._play_music()
 
     def _next_level_number(self, level_number):
         try:
-            index = self.level_numbers.index(level_number)
+            index = self.play_levels.index(level_number)
         except ValueError:
             return None
-        if index + 1 < len(self.level_numbers):
-            return self.level_numbers[index + 1]
+        if index + 1 < len(self.play_levels):
+            return self.play_levels[index + 1]
         return None
 
     def _start_tower(self):
@@ -173,7 +290,7 @@ class App:
     def _start_algorithms(self):
         self.menu.disable()
         self.algorithm_menu = AlgorithmMenu(
-            self.surface, self.h, self.w, self.map_number, self.algorithm)
+            self.surface, self.h, self.w, self.algorithm_level, self.algorithm)
         self.state = STATE_VIEWING_STATS
 
     def _play_music(self):
@@ -188,6 +305,8 @@ class App:
         self.state = STATE_MENU
         pygame.mixer.music.stop()
         self.menu.full_reset()
+        self._set_play_mode(self.play_mode, self.free_play_level)
+        self._set_algorithm_mode(self.algorithm_mode, self.algorithm_level)
         self.menu.enable()
 
     def _update(self, events, deltatime):
@@ -216,17 +335,17 @@ class App:
                 if solution is not None:
                     self.state = STATE_VIEWING_ALGORITHM
                     self.algorithm_show = AlgorithmShow(
-                        self.surface, self.h, self.w, self.map_number, solution,
+                        self.surface, self.h, self.w, self.algorithm_level, solution,
                         "Level {}, Algorithm {}, Showing Solution".format(
-                            self.map_number, self.algorithm), 500)
+                            self.algorithm_level, self.algorithm), 500)
                 explored_nodes = self.algorithm_menu.show_explored_nodes()
                 if explored_nodes is not None:
                     self.state = STATE_VIEWING_ALGORITHM
                     self.algorithm_show = AlgorithmShow(
-                        self.surface, self.h, self.w, self.map_number,
+                        self.surface, self.h, self.w, self.algorithm_level,
                         explored_nodes,
                         "Level {}, Algorithm {}, Showing Explored Nodes".format(
-                            self.map_number, self.algorithm), 150, False)
+                            self.algorithm_level, self.algorithm), 150, False)
         elif self.state == STATE_VIEWING_ALGORITHM:
             self.algorithm_show.process(events, deltatime)
             if self.algorithm_show.should_quit():

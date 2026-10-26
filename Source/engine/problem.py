@@ -23,6 +23,8 @@ class Bloxorz(Problem):
 
     def result(self, state, action):
         if action == 'SWITCH':
+            if not state.split:
+                return None
             return State(state.position, state.bridges, True, 1 - state.active)
         return self._move(state, action)
 
@@ -54,15 +56,10 @@ class Bloxorz(Problem):
             piece = _roll(cells, dx, dy)
         standing = not state.split and len(piece) == 1
 
-        if any(not self._floor(c, state.bridges) for c in piece):
-            return None
-        if standing and self.level.kinds[piece[0]] == 'f':   # fragile breaks under a standing block
-            return None
-
         bridges = list(state.bridges)
         split_to = None
         for c in piece:
-            kind = self.level.kinds[c]
+            kind = self.level.kinds.get(c)
             if kind == 's' or (kind == 'h' and standing):
                 for bx, by, mode in self.level.switches.get(c, ()):
                     i = self.level.bridge_index[(bx, by)]
@@ -73,8 +70,12 @@ class Bloxorz(Problem):
 
         if split_to:
             cubes = [tuple(split_to[:2]), tuple(split_to[2:])]
+            if cubes[0] == cubes[1]:
+                return None
             if any(not self._floor(c, bridges) for c in cubes):
                 return None
+            if _adjacent(cubes[0], cubes[1]):
+                return State(_flat(sorted(cubes)), bridges)
             return State(list(split_to), bridges, True, 0)
 
         if state.split:
@@ -84,12 +85,13 @@ class Bloxorz(Problem):
                 return None
             if any(not self._floor(c, bridges) for c in cubes):
                 return None
-            (ax, ay), (bx, by) = cubes
-            if abs(ax - bx) + abs(ay - by) == 1:            # adjacent cubes merge back into a block
+            if _adjacent(cubes[0], cubes[1]):                # adjacent cubes merge back into a block
                 return State(_flat(sorted(cubes)), bridges)
             return State(_flat(cubes), bridges, True, state.active)
 
         if any(not self._floor(c, bridges) for c in piece):  # a bridge closed under the block
+            return None
+        if standing and self.level.kinds.get(piece[0]) == 'f':   # fragile breaks under a standing block
             return None
         return State(_flat(sorted(piece)), bridges)
 
@@ -120,6 +122,10 @@ class Bloxorz(Problem):
 
 def _flat(cells):
     return [v for c in cells for v in c]
+
+
+def _adjacent(a, b):
+    return abs(a[0] - b[0]) + abs(a[1] - b[1]) == 1
 
 
 def _roll(cells, dx, dy):

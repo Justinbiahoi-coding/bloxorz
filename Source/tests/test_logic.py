@@ -6,7 +6,7 @@ from engine import (ALGORITHM_NAMES, GameSession, Level, solve,
 
 class LevelTests(unittest.TestCase):
     def test_all_levels_load(self):
-        for level_number in range(1, 54):
+        for level_number in range(1, 58):
             level = Level(level_number)
             self.assertGreater(level.size, 0)
             self.assertEqual(len(level.map), level.size)
