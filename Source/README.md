@@ -2,12 +2,29 @@
 
 ## Setup
 
-    python -m venv .venv && source .venv/bin/activate
-    pip install -r requirements.txt
+- **Linux / macOS:**
+  ```bash
+  python3 -m venv .venv && source .venv/bin/activate
+  pip install -r requirements.txt
+  ```
+
+- **Windows (PowerShell):**
+  ```powershell
+  python -m venv .venv
+  .venv\Scripts\Activate.ps1
+  pip install -r requirements.txt
+  ```
 
 ## Run
 
-    python main.py
+- **2D UI (Pygame):**
+  ```bash
+  python main.py
+  ```
+- **3D UI (Ursina / Panda3D):**
+  ```bash
+  python main3d.py
+  ```
 
 ## Test
 
