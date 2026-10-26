@@ -8,6 +8,7 @@ Course project for CSC14003 – Introduction to Artificial Intelligence, VNU-HCM
 - Core mechanics: standing / lying blocks, four rolling directions, void and goal cells
 - Advanced tiles: fragile tiles, bridges, soft / heavy / split switches, block splitting
 - Free Play modes: Normal and Advanced, with tutorial stages for each advanced mechanic
+- 2D and 3D front-ends; the 3D front-end includes Tower and Free Play
 - Solvers with metrics: search time, peak memory, expanded nodes, solution length
 - Stages loaded from JSON
 

@@ -1,10 +1,10 @@
 """Tower mode in 3D: the climb starts in the lobby and ends on the roof. Win a floor by standing in its
 elevator: the doors close, the car rides up with the camera, and the next floor opens around its arrival
 elevator. Arrows roll, Space swaps split cubes, R restarts the floor,
-Esc quits."""
+Esc returns to the menu."""
 import math
 
-from ursina import Entity, Text, Vec3, application, camera, color, destroy, held_keys, time, window
+from ursina import Entity, Text, Vec3, camera, color, destroy, held_keys, time, window
 
 from engine import Tower
 from engine.problem import DIRS
@@ -40,9 +40,10 @@ def _mix(a, b, k):
 
 
 class TowerGame(Entity):
-    def __init__(self, sun):
+    def __init__(self, sun, on_menu=None):
         super().__init__()
         self.sun = sun
+        self.on_menu = on_menu
         self.tower = Tower()
         self.floor = Floor(self.tower.session, 0, self.tower.count)
         self.next_floor = None
@@ -75,6 +76,28 @@ class TowerGame(Entity):
         self.phase = 'intro'
         self._show_hud(False)
         self._show_floor(False)                              # the lobby sits inside the intro's tower
+
+    def close(self):
+        for name in ('intro', 'prowl', 'elev'):
+            obj = getattr(self, name, None)
+            if obj is not None and hasattr(obj, 'destroy'):
+                obj.destroy()
+        for name in ('cut', 'cut_shadow'):
+            obj = getattr(self, name, None)
+            if obj is not None:
+                destroy(obj)
+        if getattr(self, 'dead_cat', None) is not None:
+            self.dead_cat.destroy()
+        if getattr(self, 'floor', None) is not None:
+            self.floor.destroy()
+        if getattr(self, 'next_floor', None) is not None:
+            self.next_floor.destroy()
+        self.block.clear()
+        for name in ('hud_name', 'hud_info', 'banner', 'panel', 'flash', 'over_text', 'over_sub'):
+            obj = getattr(self, name, None)
+            if obj is not None:
+                destroy(obj)
+        destroy(self)
 
     def _show_floor(self, on):
         self.floor.root.enabled = on
@@ -124,7 +147,9 @@ class TowerGame(Entity):
     # ---- input ----
     def input(self, key):
         if key == 'escape':
-            application.quit()
+            if self.on_menu is not None:
+                self.on_menu()
+            return
         if key == 'f':
             window.fullscreen = not window.fullscreen
         if self.phase == 'intro':

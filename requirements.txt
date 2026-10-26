@@ -1,2 +1,5 @@
 pygame>=2.5,<3
 pygame-menu>=4.5,<5
+ursina==5.2.0
+panda3d-gltf>=1.2
+screeninfo>=0.8

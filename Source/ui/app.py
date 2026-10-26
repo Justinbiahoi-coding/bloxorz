@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 from pathlib import Path
@@ -8,6 +7,8 @@ import pygame_menu
 from pygame.locals import QUIT
 
 from engine import ALGORITHM_NAMES, GameSession
+from engine.catalog import (ADVANCED_LEVELS, LEVEL_NUMBERS, NORMAL_LEVELS,
+                            TUTORIAL_TIPS, level_label)
 
 from .algorithm_views import AlgorithmMenu, AlgorithmShow
 from .game import Game
@@ -24,27 +25,6 @@ STATE_INGAME = 'INGAME'
 STATE_TOWER = 'TOWER'
 STATE_VIEWING_STATS = 'VIEWING_STATS_ALGORITHM'
 STATE_VIEWING_ALGORITHM = 'VIEWING_ALGORITHM'
-
-ADVANCED_TILES = set('fshvlrkq')
-TUTORIAL_LEVELS = (54, 55, 56, 57)
-TUTORIAL_NAMES = {
-    54: 'Tutorial 1 - Fragile',
-    55: 'Tutorial 2 - Bridges',
-    56: 'Tutorial 3 - Heavy Switch',
-    57: 'Tutorial 4 - Split',
-}
-TUTORIAL_TIPS = {
-    54: 'Fragile tiles break under a standing block. Roll across them lying down.',
-    55: 'Soft switches open bridges. Closed bridges behave like void cells.',
-    56: 'Heavy switches activate only when the full block stands upright on them.',
-    57: 'Split switches divide the block into two cubes. Press SPACE to switch cubes, then bring them together to merge.',
-}
-
-
-def has_advanced_tiles(level_number):
-    data = json.loads(
-        (BASE_DIR / 'levels' / '{}.json'.format(level_number)).read_text(encoding='utf-8'))
-    return bool(set(''.join(data.get('tiles', []))) & ADVANCED_TILES)
 
 
 class App:
@@ -69,17 +49,9 @@ class App:
         self.w, self.h = self.surface.get_size()
         pygame.display.set_caption('Bloxorz Tower')
 
-        self.level_numbers = sorted(
-            int(path.stem) for path in (BASE_DIR / 'levels').glob('*.json'))
-        advanced_flags = {number: has_advanced_tiles(number)
-                          for number in self.level_numbers}
-        tutorials = [number for number in TUTORIAL_LEVELS
-                     if number in self.level_numbers]
-        self.normal_levels = [number for number in self.level_numbers
-                              if not advanced_flags[number]]
-        self.advanced_levels = tutorials + [
-            number for number in self.level_numbers
-            if advanced_flags[number] and number not in tutorials]
+        self.level_numbers = list(LEVEL_NUMBERS)
+        self.normal_levels = list(NORMAL_LEVELS)
+        self.advanced_levels = list(ADVANCED_LEVELS)
         if not self.normal_levels:
             self.normal_levels = list(self.level_numbers)
 
@@ -193,7 +165,7 @@ class App:
         return value[1]
 
     def _map_label(self, level_number):
-        return TUTORIAL_NAMES.get(level_number, 'Level {}'.format(level_number))
+        return level_label(level_number)
 
     def _map_items(self, levels):
         return [(self._map_label(number), number) for number in levels]

@@ -18,6 +18,6 @@ def run(fullscreen=False):
     from panda3d.core import NodePath  # noqa: F401  (render is a builtin set up by Ursina)
     import builtins
     sun = lights(builtins.render)
-    from .game import TowerGame
-    TowerGame(sun)
+    from .app import App3D
+    App3D(sun)
     app.run()

@@ -7,14 +7,30 @@
 
 ## Run
 
+2D front-end:
+
     python main.py
+
+3D front-end:
+
+    python main3d.py
+
+The 3D front-end uses the pinned Ursina version in `requirements.txt`.
 
 ## Free Play
 
-Free Play offers two level sets:
+Free Play offers two level sets in both front-ends:
 
 - **Normal** — stages without advanced tiles.
 - **Advanced** — starts with tutorials for fragile tiles, bridges, heavy switches, and split cubes, followed by the advanced stages.
+
+3D Free Play controls:
+
+- Arrow keys — roll
+- Space — switch active split cube
+- R — restart level
+- Esc — return to menu
+- F — toggle fullscreen
 
 ## Test
 
