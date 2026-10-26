@@ -1,4 +1,16 @@
+import math
+
 import pygame
+
+from engine.problem import DIRS
+
+from . import blockfx, building, rooftop, sprites
+
+
+MAX_TILE = 112
+_TILE_TEXTURE = {'floor': 'concrete', 'goal': 'concrete', 'soft': 'concrete', 'heavy': 'concrete',
+                 'split': 'concrete', 'fragile': 'fragile', 'bridge_open': 'steel'}
+
 
 # Keyboard key -> engine action.
 _MOVE_KEYS = {
@@ -6,6 +18,7 @@ _MOVE_KEYS = {
     pygame.K_RIGHT: 'RIGHT',
     pygame.K_UP: 'DOWN',
     pygame.K_DOWN: 'UP',
+    pygame.K_SPACE: 'SWITCH',   # change the active cube when the block is split
 }
 
 
@@ -13,7 +26,7 @@ class Game:
     """Pygame view/controller for an engine GameSession."""
 
     def __init__(self, surface, W_HEIGHT_SIZE, W_WIDTH_SIZE, session,
-                 show_hint=False):
+                 show_hint=False, background=None, tile=None, scene=None):
         self.surface = surface
         self.W_HEIGHT_SIZE = W_HEIGHT_SIZE
         self.W_WIDTH_SIZE = W_WIDTH_SIZE
@@ -23,26 +36,32 @@ class Game:
         self.session = session
         self.level = session.level
 
-        # drawing
-        self.square_size = 50
-        self.starting_x = self.CENTER_X - self.level.size / 2 * self.square_size
-        self.starting_y = self.CENTER_Y - self.level.size / 2 * self.square_size
-        self.ending_x = self.CENTER_X + self.level.size / 2 * self.square_size
-        self.ending_y = self.CENTER_Y + self.level.size / 2 * self.square_size
-        if self.starting_x < 190:
-            self.starting_x = 190
-            self.starting_y = 75
-            self.ending_x = 690
-            self.ending_y = 575
-            self.square_size = (self.ending_x - self.starting_x) / self.level.size
+        # drawing: small maps are zoomed in (up to MAX_TILE), the biggest one just fits; board centred
+        xs, ys = [x for x, _ in self.level.kinds], [y for _, y in self.level.kinds]
+        span = max(max(xs) - min(xs), max(ys) - min(ys)) + 1 + (4 if scene else 0)   # keep two tiles of building in view
+        self.square_size = tile or min(MAX_TILE, int(min(W_WIDTH_SIZE - 280, W_HEIGHT_SIZE - 140) / span))
+        self.starting_x = self.CENTER_X - (min(xs) + max(xs) + 1) / 2 * self.square_size
+        self.starting_y = self.CENTER_Y - (min(ys) + max(ys) + 1) / 2 * self.square_size
+        self.ending_x = self.starting_x + self.level.size * self.square_size
+        self.ending_y = self.starting_y + self.level.size * self.square_size
+
+        # background: sky, plus the skyscraper around the floor in tower mode (scene = (floor, floor_count))
+        self.sky = (background or rooftop.sky((W_WIDTH_SIZE, W_HEIGHT_SIZE))).copy()
+        self.scene = scene
+        self.beacon = building.bake(self.sky, self, *scene) if scene else None
 
         self.unavailable_color = (10, 10, 10)
         self.available_color = (50, 50, 100)
         self.block_color = (150, 150, 150)
         self.hint_color = (255, 128, 0)
         self.goal_color = (252, 25, 25)
+        self._tile_colors = {'floor': self.available_color,
+                             'void': self.unavailable_color,
+                             'goal': self.goal_color}
         self.line_color = (255, 255, 255)
 
+        self.anim = None         # block roll in progress
+        self.block_scale = 1.0   # <1 while the block drops through the goal hole
         self.font = pygame.font.Font(None, 50)
         self.ESC = False
         self.show_hint = show_hint
@@ -58,12 +77,30 @@ class Game:
                 continue
 
             if not self.session.won and event.key in _MOVE_KEYS:
-                self.session.move(_MOVE_KEYS[event.key])
+                before, action = self.session.state, _MOVE_KEYS[event.key]
+                if self.session.move(action):
+                    self.start_roll(before, self.session.state, action)
             elif (not self.session.won and event.key == pygame.K_h
                   and self.session.hint is None):
                 self.session.request_hint()
             elif event.key == pygame.K_ESCAPE:
                 self.ESC = True
+
+    def _boxes(self, state):
+        cells = self.session.block_cells(state)
+        if state.split:
+            return [blockfx.make_box([c], True) for c in cells]
+        return [blockfx.make_box(cells, False)]
+
+    def start_roll(self, before, after, action):
+        """Animate the move unless it is not a plain roll (switching cube, splitting, merging)."""
+        self.anim = None
+        if action == 'SWITCH' or before.split != after.split:
+            return
+        idx = before.active if before.split else 0
+        start, end = self._boxes(before)[idx], self._boxes(after)[idx]
+        if blockfx.rolls_to(start, DIRS[action], end):
+            self.anim = blockfx.start_roll(start, DIRS[action], idx, pygame.time.get_ticks())
 
     def set_state(self, state, increment_moves=True):
         self.session.set_state(state, increment_moves)
@@ -84,33 +121,57 @@ class Game:
         self.surface.blit(text, text_rect)
 
     def draw(self):
-        self.draw_grid()
+        self.surface.blit(self.sky, (0, 0))
+        building.draw_beacon(self.surface, self.beacon, pygame.time.get_ticks())
         self.draw_map()
-        self.draw_goal()
-        self.draw_position(self.session.state.position, self.block_color)
+        self.draw_block()
         self.draw_hint()
 
-    def draw_grid(self):
-        x = self.starting_x
-        y = self.starting_y
-
-        for _ in range(self.level.size + 1):
-            pygame.draw.line(self.surface, self.line_color,
-                             (int(x), int(self.starting_y)),
-                             (int(x), int(self.ending_y)))
-            pygame.draw.line(self.surface, self.line_color,
-                             (int(self.starting_x), int(y)),
-                             (int(self.ending_x), int(y)))
-            x += self.square_size
-            y += self.square_size
+    def cell_rect(self, x, y):
+        sq = self.square_size
+        return pygame.Rect(int(self.starting_x + x * sq), int(self.starting_y + y * sq), int(sq), int(sq))
 
     def draw_map(self):
-        for x in range(self.level.size):
-            for y in range(self.level.size):
-                if self.level.is_tile_available(x, y):
-                    self.draw_map_square(x, y, self.available_color)
-                else:
-                    self.draw_map_square(x, y, self.unavailable_color)
+        for y in range(self.level.size):
+            for x in range(self.level.size):
+                kind = self.session.tile_at(x, y)
+                if kind != 'void':
+                    below = y + 1 >= self.level.size or self.session.tile_at(x, y + 1) in ('void', 'bridge_closed')
+                    tex = _TILE_TEXTURE.get(kind)
+                    carpet = False
+                    if self.scene:                       # path is part of the floor: flush with it
+                        below = False
+                        carpet = tex == 'concrete' and self.scene[0] > 0   # indoors: a carpet runner
+                    piece = sprites.cell_piece(tex, int(self.square_size), x, y) if tex else None
+                    if carpet and piece is not None:
+                        piece = piece.copy()
+                        piece.fill((104, 118, 150), special_flags=pygame.BLEND_RGB_MULT)
+                    rect = self.cell_rect(x, y)
+                    rooftop.tile(self.surface, rect, kind, below, piece)
+                    if self.scene and kind != 'bridge_closed' and not carpet:
+                        self.surface.blit(self._path_veil(rect.size), rect.topleft)
+
+    def _path_veil(self, size):
+        """Light wash marking the walkable cells without lifting them off the floor."""
+        if getattr(self, '_veil', None) is None or self._veil.get_size() != size:
+            self._veil = pygame.Surface(size, pygame.SRCALPHA)
+            self._veil.fill((255, 244, 220, 34))
+        return self._veil
+
+    def draw_block(self):
+        boxes, roll, now = self._boxes(self.session.state), None, pygame.time.get_ticks()
+        if self.anim:
+            p = blockfx.progress(self.anim, now)
+            if p >= 1:
+                self.anim = None
+            else:
+                boxes[self.anim.idx] = self.anim.box
+                roll = (self.anim.d, (p * p * (3 - 2 * p)) * math.pi / 2)
+        order = sorted(range(len(boxes)), key=lambda i: boxes[i][1])       # northern pieces first
+        for i in order:
+            blockfx.draw_box(self.surface, boxes[i], (self.starting_x, self.starting_y), self.square_size,
+                             roll if self.anim and i == self.anim.idx else None, self.block_scale,
+                             ring=self.session.is_split and i == self.session.active)
 
     def draw_map_square(self, x, y, color):
         rect = pygame.Rect(
@@ -121,26 +182,20 @@ class Game:
         )
         pygame.draw.rect(self.surface, color, rect)
 
-    def draw_position(self, position, color):
-        if len(position) == 2:
-            self.draw_map_square(position[0], position[1], color)
-            return
-
-        x1, y1, x2, y2 = position
-        self.draw_map_square(x1, y1, color)
-        self.draw_map_square(x2, y2, color)
-        if x1 == x2:
-            self.draw_map_square(x1, (y1 + y2) / 2, color)
-        else:
-            self.draw_map_square((x1 + x2) / 2, y1, color)
+    def draw_cells(self, cells, color):
+        for x, y in cells:
+            self.draw_map_square(x, y, color)
+        if len(cells) == 2 and abs(cells[0][0] - cells[1][0]) + abs(cells[0][1] - cells[1][1]) == 1:  # fill the gap between the two halves
+            (x1, y1), (x2, y2) = cells
+            self.draw_map_square((x1 + x2) / 2, (y1 + y2) / 2, color)
 
     def draw_hint(self):
         if not self.show_hint:
             return
 
         if self.session.hint is not None:
-            self.draw_position(self.session.hint.state.position,
-                               self.hint_color)
+            self.draw_cells(self.session.block_cells(self.session.hint.state),
+                            self.hint_color)
         elif not self.session.won:
             text = self.font.render(
                 "Feeling Trapped? Press H for a hint.",
@@ -148,11 +203,6 @@ class Game:
             text_rect = text.get_rect(
                 center=(self.W_WIDTH_SIZE / 2, self.W_HEIGHT_SIZE - 35))
             self.surface.blit(text, text_rect)
-
-    def draw_goal(self):
-        x = self.session.goal.position[0]
-        y = self.session.goal.position[1]
-        self.draw_map_square(x, y, self.goal_color)
 
     def should_quit(self):
         return self.ESC

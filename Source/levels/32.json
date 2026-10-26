@@ -1,0 +1,55 @@
+{
+ "level": 32,
+ "size": 13,
+ "start": [
+  6,
+  2
+ ],
+ "end": [
+  4,
+  4
+ ],
+ "tiles": [
+  "            h",
+  "     bbb  bbb",
+  "     bhbbbbbl",
+  "   bbbbb  bb ",
+  "   bebl   bb ",
+  " bbbbb   bbbb",
+  "bbbb     bbbb",
+  "bbbb  bbbbb  ",
+  "     bbb     ",
+  "     bbb     ",
+  "             ",
+  "             ",
+  "             "
+ ],
+ "switches": [
+  {
+   "at": [
+    6,
+    2
+   ],
+   "bridges": [
+    [
+     12,
+     2,
+     "onoff"
+    ]
+   ]
+  },
+  {
+   "at": [
+    12,
+    0
+   ],
+   "bridges": [
+    [
+     6,
+     4,
+     "onoff"
+    ]
+   ]
+  }
+ ]
+}

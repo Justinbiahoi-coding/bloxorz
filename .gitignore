@@ -4,3 +4,13 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 results/
+
+# intermediate exports of the character (the animated one in player_actor/ is what the game uses)
+Source/assets/models/player.glb
+Source/assets/models/player_parts/
+
+# licences and credits: written by hand later
+LICENSE*
+**/LICENSE*
+docs/CREDITS.md
+docs/permissions/

@@ -10,17 +10,17 @@ from engine import ALGORITHM_NAMES, GameSession
 
 from .algorithm_views import AlgorithmMenu, AlgorithmShow
 from .game import Game
+from .tower_view import TowerGame
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Graphics related
 COLOR_BACKGROUND = [15, 125, 117]
 FPS = 60
-H_SIZE = 650  # Height of window size
-W_SIZE = 880  # Width of window size
 
 STATE_MENU = 'MENU'
 STATE_INGAME = 'INGAME'
+STATE_TOWER = 'TOWER'
 STATE_VIEWING_STATS = 'VIEWING_STATS_ALGORITHM'
 STATE_VIEWING_ALGORITHM = 'VIEWING_ALGORITHM'
 
@@ -30,11 +30,18 @@ class App:
 
     def __init__(self):
         os.environ.setdefault('SDL_VIDEO_CENTERED', '1')
+        os.environ.setdefault('SDL_VIDEO_MAC_FULLSCREEN_SPACES', '1')   # macOS: fullscreen as its own Space, so Cmd+Tab and swipes still work
         pygame.init()
 
         self.clock = pygame.time.Clock()
-        self.surface = pygame.display.set_mode((W_SIZE, H_SIZE))
-        pygame.display.set_caption('Bloxorz Menu')
+        # open fullscreen once to learn the real usable size (macOS keeps the notch strip), then reopen
+        # GPU-scaled with vsync at exactly that size, so there are no black bars
+        size = pygame.display.set_mode((0, 0), pygame.FULLSCREEN).get_size()
+        pygame.display.quit()                  # a SCALED window cannot replace a plain one; start the display over
+        pygame.display.init()
+        self.surface = pygame.display.set_mode(size, pygame.FULLSCREEN | pygame.SCALED, vsync=1)
+        self.w, self.h = self.surface.get_size()
+        pygame.display.set_caption('Bloxorz Tower')
 
         self.level_numbers = sorted(
             int(path.stem) for path in (BASE_DIR / 'levels').glob('*.json'))
@@ -70,8 +77,8 @@ class App:
     def _build_menus(self):
         self.menu = pygame_menu.Menu(
             title='Bloxorz Menu',
-            width=W_SIZE,
-            height=H_SIZE,
+            width=self.w,
+            height=self.h,
             surface=self.surface,
             theme=self._make_theme(COLOR_BACKGROUND),
             onclose=pygame_menu.events.NONE,
@@ -79,8 +86,8 @@ class App:
 
         self.free_play_menu = pygame_menu.Menu(
             title='Free Play',
-            width=W_SIZE,
-            height=H_SIZE,
+            width=self.w,
+            height=self.h,
             surface=self.surface,
             theme=self._make_theme((30, 50, 107)),
             onclose=pygame_menu.events.NONE,
@@ -94,8 +101,8 @@ class App:
 
         self.algorithms_select_menu = pygame_menu.Menu(
             title='Algorithms',
-            width=W_SIZE,
-            height=H_SIZE,
+            width=self.w,
+            height=self.h,
             surface=self.surface,
             theme=self._make_theme((27, 90, 26)),
             onclose=pygame_menu.events.NONE,
@@ -112,6 +119,7 @@ class App:
         self.algorithms_select_menu.add.button(
             'Return to Menu', pygame_menu.events.BACK)
 
+        self.menu.add.button('Tower', self._start_tower)
         self.menu.add.button('Free Play', self.free_play_menu)
         self.menu.add.button('Algorithms', self.algorithms_select_menu)
         self.menu.add.button('Exit', pygame_menu.events.EXIT)
@@ -134,14 +142,19 @@ class App:
         self.menu.disable()
         self.surface.fill(COLOR_BACKGROUND)
         session = GameSession(self.map_number)
-        self.game = Game(self.surface, H_SIZE, W_SIZE, session, True)
+        self.game = Game(self.surface, self.h, self.w, session, True)
         self.state = STATE_INGAME
         self._play_music()
+
+    def _start_tower(self):
+        self.menu.disable()
+        self.tower = TowerGame(self.surface, self.h, self.w)
+        self.state = STATE_TOWER
 
     def _start_algorithms(self):
         self.menu.disable()
         self.algorithm_menu = AlgorithmMenu(
-            self.surface, H_SIZE, W_SIZE, self.map_number, self.algorithm)
+            self.surface, self.h, self.w, self.map_number, self.algorithm)
         self.state = STATE_VIEWING_STATS
 
     def _play_music(self):
@@ -163,6 +176,10 @@ class App:
             self.game.process(events)
             if self.game.should_quit():
                 self._return_to_menu()
+        elif self.state == STATE_TOWER:
+            self.tower.process(events)
+            if self.tower.should_quit():
+                self._return_to_menu()
         elif self.state == STATE_VIEWING_STATS:
             self.algorithm_menu.process(events)
             if self.algorithm_menu.should_quit():
@@ -172,14 +189,14 @@ class App:
                 if solution is not None:
                     self.state = STATE_VIEWING_ALGORITHM
                     self.algorithm_show = AlgorithmShow(
-                        self.surface, H_SIZE, W_SIZE, self.map_number, solution,
+                        self.surface, self.h, self.w, self.map_number, solution,
                         "Level {}, Algorithm {}, Showing Solution".format(
                             self.map_number, self.algorithm), 500)
                 explored_nodes = self.algorithm_menu.show_explored_nodes()
                 if explored_nodes is not None:
                     self.state = STATE_VIEWING_ALGORITHM
                     self.algorithm_show = AlgorithmShow(
-                        self.surface, H_SIZE, W_SIZE, self.map_number,
+                        self.surface, self.h, self.w, self.map_number,
                         explored_nodes,
                         "Level {}, Algorithm {}, Showing Explored Nodes".format(
                             self.map_number, self.algorithm), 150, False)

@@ -6,6 +6,7 @@ names exported here (and on plain Python data) so it can be replaced.
 from .level import Level
 from .problem import Bloxorz, State
 from .session import GameSession
+from .tower import FLOORS, Tower
 from .solver import (ALGORITHM_NAMES, SolveResult, solve, solve_problem)
 
 __all__ = [
@@ -13,6 +14,8 @@ __all__ = [
     'Bloxorz',
     'State',
     'GameSession',
+    'Tower',
+    'FLOORS',
     'ALGORITHM_NAMES',
     'SolveResult',
     'solve',
