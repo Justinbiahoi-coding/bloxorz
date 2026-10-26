@@ -1,4 +1,6 @@
 from collections import deque
+import heapq
+from itertools import count
 import time
 
 from .node import Node
@@ -41,7 +43,31 @@ def iterative_deepening_search(problem):
 
 
 def uniform_cost_search(problem):
-    raise NotImplementedError
+    """Find a minimum-cost path when all step costs are nonnegative."""
+    started_at = time.perf_counter()
+    root = Node(problem.initial)
+    order = count()
+    frontier = [(root.path_cost, next(order), root)]
+    best_cost = {root.state: root.path_cost}
+    explored_ordered = []
+
+    while frontier:
+        _, _, node = heapq.heappop(frontier)
+        if node.path_cost != best_cost[node.state]:
+            continue
+        if problem.goal_test(node.state):
+            elapsed_ms = (time.perf_counter() - started_at) * 1000
+            return [node, explored_ordered, elapsed_ms]
+
+        explored_ordered.append(node)
+        for child in node.expand(problem):
+            if (child.state not in best_cost
+                    or child.path_cost < best_cost[child.state]):
+                best_cost[child.state] = child.path_cost
+                heapq.heappush(frontier, (child.path_cost, next(order), child))
+
+    elapsed_ms = (time.perf_counter() - started_at) * 1000
+    return [None, explored_ordered, elapsed_ms]
 
 
 def bidirectional_search(problem):
