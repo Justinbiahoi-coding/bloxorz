@@ -44,10 +44,11 @@ def glow(parent, pos, size, col, model=BOX, **kw):
 
 
 class Floor:
-    def __init__(self, session, index, count):
+    def __init__(self, session, index, count, free_play=False):
         self.session, self.index, self.count = session, index, count
+        self.free_play = free_play
         self.base = floor_y(index)
-        self.roof = index == count - 1                       # the climb ends on the rooftop
+        self.roof = not free_play and index == count - 1      # the climb ends on the rooftop
         self.root = Entity()
         self.rng = random.Random(1000 + session.level.level)
         kinds = session.level.kinds
@@ -61,11 +62,13 @@ class Floor:
             self._roof()
         else:
             self._room()
-            self._furnish()
+            if not self.free_play:
+                self._furnish()
         self.refresh()
         lv = session.level                                      # elevators: one to leave, one we arrived in
-        self.lift = None if self.roof else Lift(self.root, self.at(*lv.end), self._door_yaw(lv.end), True)
-        self.arrival = Lift(self.root, self.at(*lv.start), self._door_yaw(lv.start), False) if index > 0 else None
+        self.lift = None if self.roof or free_play else Lift(self.root, self.at(*lv.end), self._door_yaw(lv.end), True)
+        self.arrival = None if free_play else (
+            Lift(self.root, self.at(*lv.start), self._door_yaw(lv.start), False) if index > 0 else None)
         self.lift_arrow = None
         if self.lift:                                           # a big arrow floating over the lift we are heading for
             self.lift_arrow = glow(self.root, self.at(*lv.end, Lift.H + 1.5), (0.7, 0.95, 0.7), color.rgb(255, 205, 90),
@@ -332,6 +335,12 @@ class Floor:
                 for dx in (-0.17, 0.17):
                     glow(self.tiles, top + Vec3(dx, 0.01, 0), (0.07, 0.01, 0.42), color.rgb(40, 40, 48))
                 glow(self.tiles, top + Vec3(0, 0.01, 0), (0.34, 0.01, 0.07), color.rgb(40, 40, 48))
+                self.arrow = glow(self.tiles, self.at(x, y, 1.6), (0.36, 0.45, 0.36), color.rgb(255, 205, 90),
+                                  model=Cone(4), rotation_x=180)
+                continue
+            if kind == 'goal' and self.free_play:
+                box(self.tiles, p, (0.96, TILE_TOP, 0.96), color.rgb(60, 64, 76))
+                glow(self.tiles, top, (0.86, 0.01, 0.86), color.rgb(255, 205, 90), model='circle', rotation_x=90)
                 self.arrow = glow(self.tiles, self.at(x, y, 1.6), (0.36, 0.45, 0.36), color.rgb(255, 205, 90),
                                   model=Cone(4), rotation_x=180)
                 continue

@@ -43,6 +43,21 @@ The game uses `pygame-ce` and `pygame-menu-ce` (drop-in forks, still `import pyg
 `import pygame_menu`) because they ship ready-made wheels for every current Python,
 including 3.14. `ursina` is pinned to 5.2.0: newer versions change the font API.
 
+## Free Play
+
+Free Play offers two level sets in both front-ends:
+
+- **Normal** — stages without advanced tiles.
+- **Advanced** — starts with tutorials for fragile tiles, bridges, heavy switches, and split cubes, followed by the advanced stages.
+
+3D Free Play controls:
+
+- Arrow keys — roll
+- Space — switch active split cube
+- R — restart level
+- Esc — return to menu
+- F — toggle fullscreen
+
 ## Test
 
 ```bash
@@ -53,4 +68,6 @@ including 3.14. `ursina` is pinned to 5.2.0: newer versions change the font API.
 ## Documentation
 
 - [UI and engine interaction](../docs/UI_ENGINE_INTERACTION.md)
+- [Advanced mechanics](../docs/ADVANCED_MECHANICS.md)
 - [Algorithm implementation guide](../docs/ALGORITHM_IMPLEMENTATION_GUIDE.md)
+- [Solver implementation guide](../docs/SOLVER_IMPLEMENTATION.md)

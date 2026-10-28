@@ -52,19 +52,25 @@ class GameSession:
     def actions(self):
         return self.problem.actions(self.state)
 
-    def move(self, action):
-        """Apply a move. Returns True if the state changed."""
+    def attempt_move(self, action):
+        """Apply a move and report whether it succeeded, won, or left the board."""
         if self.won:
-            return False
+            return 'blocked', self.state, self.state
 
-        new_state = self.problem.do_action_if_possible(self.state, action)
+        before = self.state
+        new_state = self.problem.do_action_if_possible(before, action)
         if new_state is None:
-            return False
+            return 'fell', before, before
 
         self.state = new_state
         self.moves += 1
         self.hint = None
-        return True
+        status = 'won' if self.problem.goal_test(new_state) else 'moved'
+        return status, before, new_state
+
+    def move(self, action):
+        """Apply a move. Returns True if the state changed."""
+        return self.attempt_move(action)[0] in ('moved', 'won')
 
     def set_state(self, state, increment_moves=True):
         """Set the state directly; used by solution playback views."""
