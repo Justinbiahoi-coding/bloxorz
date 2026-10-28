@@ -6,9 +6,11 @@ Floors are stacked bottom-up: floor 0 is the lobby, the last one the rooftop; fl
 from functools import lru_cache
 from pathlib import Path
 
-from panda3d.core import loadPrcFileData
+from panda3d.core import Filename, loadPrcFileData
 
 ASSETS = Path(__file__).resolve().parent.parent / 'assets'
+# Panda3D wants Unix-style paths; a raw Windows path (D:\...) fails to load
+FONT = Filename.fromOsSpecific(str(ASSETS / 'fonts' / 'Fredoka.ttf')).getFullpath()
 FLOOR_H = 6.0                 # storey height in world units (one cell = one unit)
 FURNITURE = 1.25              # Kenney models are sized for ~0.8 unit rooms; scale them to our cells
 

@@ -2,7 +2,7 @@
 
 
 def run(fullscreen=False):
-    from .world import ASSETS, configure, lights
+    from .world import ASSETS, FONT, configure, lights
     configure()
     from ursina import Entity, Text, Ursina, application
     # a normal, large window by default: true fullscreen on macOS locks out Cmd+Tab and the Dock.
@@ -14,7 +14,7 @@ def run(fullscreen=False):
                  development_mode=False)
     application.asset_folder = ASSETS
     Entity.default_shader = None                 # use Panda3D's own lighting (see world.lights)
-    Text.default_font = str(ASSETS / 'fonts' / 'Fredoka.ttf')
+    Text.default_font = FONT
     from panda3d.core import NodePath  # noqa: F401  (render is a builtin set up by Ursina)
     import builtins
     sun = lights(builtins.render)

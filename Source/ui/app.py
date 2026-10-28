@@ -122,7 +122,7 @@ class App:
         self.menu.add.button('Tower', self._start_tower)
         self.menu.add.button('Free Play', self.free_play_menu)
         self.menu.add.button('Algorithms', self.algorithms_select_menu)
-        self.menu.add.button('Exit', pygame_menu.events.EXIT)
+        self.menu.add.button('Exit', self._quit)
 
     def _selected_option_value(self, value):
         # pygame-menu passes (selected_item, selected_index) as the first
@@ -209,6 +209,11 @@ class App:
             if self.menu.is_enabled():
                 self.menu.draw(self.surface, clear_surface=False)
 
+    def _quit(self):
+        # pygame_menu.events.EXIT ends the process with code 1, which reads as a crash
+        pygame.quit()
+        sys.exit()
+
     def run(self):
         while True:
             deltatime = self.clock.tick(FPS)
@@ -217,8 +222,7 @@ class App:
 
             for event in events:
                 if event.type == QUIT:
-                    pygame.quit()
-                    sys.exit()
+                    self._quit()
 
             self._update(events, deltatime)
             pygame.display.flip()
