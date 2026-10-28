@@ -16,8 +16,8 @@ FURNITURE = 1.25              # Kenney models are sized for ~0.8 unit rooms; sca
 
 
 def configure():
-    """Before Ursina starts: fullscreen at the desktop size, no audio library, antialiasing."""
-    loadPrcFileData('', 'audio-library-name null\nframebuffer-multisample 1\nmultisamples 4\n'
+    """Before Ursina starts: OpenAL for the music (mp3 through ffmpeg), antialiasing."""
+    loadPrcFileData('', 'audio-library-name p3openal_audio\nframebuffer-multisample 1\nmultisamples 4\n'
                         'sync-video 1\nwindow-title Bloxorz Tower')
 
 
@@ -49,7 +49,8 @@ def lights(render):
     render.setLight(lamp_np)
     sun_np.setPythonTag('lantern', lamp_np)
     sun_np.setPythonTag('ambient', render.find('**/fill'))
-    sun_np.setPythonTag('levels', (sun.getColor(), amb.getColor()))
+    # copies: getColor() is a live view, so later setColor calls would rewrite the stored levels too
+    sun_np.setPythonTag('levels', (Vec4(sun.getColor()), Vec4(amb.getColor())))
     render.setShaderAuto()
     return sun_np
 

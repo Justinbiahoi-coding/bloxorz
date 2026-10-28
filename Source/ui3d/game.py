@@ -1,7 +1,7 @@
 """Tower mode in 3D: the climb starts in the lobby and ends on the roof. Win a floor by standing in its
 elevator: the doors close, the car rides up with the camera, and the next floor opens around its arrival
-elevator. Arrows roll, Space swaps split cubes, R restarts the floor,
-Esc returns to the menu."""
+elevator. Arrows roll, Space swaps split cubes, R restarts the floor, H shows a hint,
+Esc pauses. The HUD (ui3d/hud.py) adds New Game, Restart, Hint and Solve buttons."""
 import math
 
 from ursina import Entity, Text, Vec3, camera, color, destroy, held_keys, time, window
@@ -9,7 +9,12 @@ from ursina import Entity, Text, Vec3, camera, color, destroy, held_keys, time, 
 from engine import Tower
 from engine.problem import DIRS
 
+from . import settings
+from . import widgets as w
 from .block import Block
+from .controls import PlayControls
+from .hud import GameHUD
+from .screens.dialogs import PauseMenu
 from .cat import Cat, available as cat_available
 from .floor import Floor, glow
 from .liftscene import LiftScene
@@ -39,11 +44,14 @@ def _mix(a, b, k):
     return tuple(int(x + (y - x) * k) for x, y in zip(a, b))
 
 
-class TowerGame(Entity):
-    def __init__(self, sun, on_menu=None):
+class TowerGame(PlayControls, Entity):
+    """on_menu(); on_new_game() starts the climb over; on_settings(on_close); on_finish(floors, moves)."""
+
+    def __init__(self, sun, on_menu=None, on_new_game=None, on_settings=None, on_finish=None):
         super().__init__()
         self.sun = sun
         self.on_menu = on_menu
+        self.on_new_game, self.on_settings, self.on_finish = on_new_game, on_settings, on_finish
         self.tower = Tower()
         self.floor = Floor(self.tower.session, 0, self.tower.count)
         self.next_floor = None
@@ -55,12 +63,10 @@ class TowerGame(Entity):
         camera.fov = 42
         self._place_block()
         self._aim(self.floor)
-        self.hud_name = Text('', position=window.top_left + Vec3(0.06, -0.05, 0), scale=2.2, color=color.white)
-        self.hud_info = Text('', position=window.top_left + Vec3(0.065, -0.12, 0), scale=1.2,
-                             color=color.rgb(255, 200, 87))
         self.banner = Text('', origin=(0, 0), scale=2.4, color=color.white, y=0.05)
-        self.panel = Entity(parent=camera.ui, model='quad', color=color.rgba(20, 26, 44, 190), z=1,
-                            scale=(0.5, 0.17), position=window.top_left + Vec3(0.27, -0.095, 0))
+        self.hud = GameHUD({'new_game': self.new_game, 'restart': self.restart, 'hint': self.hint,
+                            'solve': self.solve, 'pause': self.pause})
+        self._legend_for = None
         self._hud()
         self.flash = Entity(parent=camera.ui, model='quad', scale=(4, 2), z=2, color=color.rgba(0, 0, 0, 0), enabled=False)
         self.over_text = Text('GAME OVER', origin=(0, 0), scale=4.4, y=0.08, z=-3, color=color.rgba(255, 240, 230, 0), enabled=False)
@@ -94,7 +100,11 @@ class TowerGame(Entity):
         if getattr(self, 'next_floor', None) is not None:
             self.next_floor.destroy()
         self.block.clear()
-        for name in ('hud_name', 'hud_info', 'banner', 'panel', 'flash', 'over_text', 'over_sub'):
+        self.stop_auto()
+        self.clear_hint()
+        for m in list(w.Modal.stack):
+            m.close()
+        for name in ('hud', 'banner', 'flash', 'over_text', 'over_sub'):
             obj = getattr(self, name, None)
             if obj is not None:
                 destroy(obj)
@@ -136,14 +146,57 @@ class TowerGame(Entity):
         i = min(len(SKY) - 2, int(k * (len(SKY) - 1)))
         window.color = color.rgb(*_mix(SKY[i], SKY[i + 1], k * (len(SKY) - 1) - i))
 
+    @property
+    def session(self):
+        return self.tower.session
+
     def _show_hud(self, on):
-        for e in (self.hud_name, self.hud_info, self.panel):
-            e.enabled = on
+        self.hud.show(on)
 
     def _hud(self):
         s = self.tower.session
-        self.hud_name.text = floor_name(self.tower.index, self.tower.count)
-        self.hud_info.text = 'LEVEL {} / {}     MOVES {}'.format(self.tower.index + 1, self.tower.count, s.moves)
+        stats = [('Floor', '{:02d}'.format(self.tower.index + 1), '/ {}'.format(self.tower.count)),
+                 ('Moves', '{:02d}'.format(s.moves), '')]
+        if s.is_split:
+            stats.append(('Cube', 'AB'[s.active], ''))
+        self.hud.set(floor_name(self.tower.index, self.tower.count), stats)
+        if self._legend_for is not self.floor:                 # a new floor: list its tile kinds
+            self._legend_for = self.floor
+            self.hud.set_legend({s.tile_at(x, y) for x, y in s.level.kinds})
+
+    # ---- toolbar ----
+    def restart(self):
+        """Start this floor again (R)."""
+        if self.phase not in ('play', 'roll'):
+            return
+        self.stop_auto()
+        self.clear_hint()
+        s = self.tower.session
+        s.reset()
+        self.floor.refresh()
+        self._place_block()
+        if self.prowl:
+            self.prowl.reset()
+        self.phase, self.t = 'play', 0.0
+        self._hud()
+
+    def new_game(self):
+        if self.on_new_game:
+            w.ConfirmDialog('Start the climb again?', 'You go back down to the lobby; this climb is lost.',
+                            self.on_new_game, confirm='Restart tower', danger=True)
+
+    def pause(self):
+        if self.phase not in ('play', 'roll') or w.Modal.any_open():
+            return
+        self.stop_auto()
+        PauseMenu(resume=None, restart=self.restart, new_game=self.new_game,
+                  settings=(lambda: self.on_settings(self.pause)) if self.on_settings else None,
+                  main_menu=self._leave)
+
+    def _leave(self):
+        if self.on_menu:
+            w.ConfirmDialog('Return to main menu?', 'This climb will be lost.', self.on_menu, confirm='Leave',
+                            danger=True)
 
     # ---- input ----
     def input(self, key):
@@ -151,12 +204,17 @@ class TowerGame(Entity):
             if not self.intro.at_title and not key.endswith(' up'):
                 self.intro.skip_or_enter()
             return
+        if w.Modal.any_open():
+            return
         if key == 'escape':
-            if self.on_menu is not None:
+            if self.phase in ('play', 'roll'):
+                self.pause()
+            elif self.on_menu is not None:
                 self.on_menu()
             return
         if key == 'f':
-            window.fullscreen = not window.fullscreen
+            settings.set('fullscreen', not window.fullscreen)
+            window.fullscreen = settings.get('fullscreen')
         if self.phase == 'intro':
             if not key.endswith(' up'):
                 self.intro.skip_or_enter()
@@ -172,7 +230,11 @@ class TowerGame(Entity):
             return
         s = self.tower.session
         before = s.state
+        if key == 'h':
+            self.hint()
+            return
         if key in KEYS or key == 'space':
+            self.clear_hint()
             action = KEYS.get(key, 'SWITCH')
             if not s.move(action):
                 if key in KEYS and self.prowl is not None:
@@ -186,11 +248,7 @@ class TowerGame(Entity):
                 self._place_block()
                 self._after_move()
         elif key == 'r':
-            s.reset()
-            self.floor.refresh()
-            self._place_block()
-            if self.prowl:
-                self.prowl.reset()
+            self.restart()
         self._hud()
 
     # ---- falling off the path: the dead come for the bin ----
@@ -393,8 +451,13 @@ class TowerGame(Entity):
             if self.t >= 1:
                 if self.tower.is_last:
                     self.phase = 'done'
-                    self.banner.text = 'You made it to the roof!\n{} floors, {} moves'.format(
-                        self.tower.count, self.tower.total_moves + self.tower.session.moves)
+                    total = self.tower.total_moves + self.tower.session.moves
+                    if self.on_finish:
+                        self._show_hud(False)
+                        self.on_finish(self.tower.count, total)
+                    else:
+                        self.banner.text = 'You made it to the roof!\n{} floors, {} moves'.format(
+                            self.tower.count, total)
                     return
                 for c in getattr(self.block, 'chars', []):
                     c['shadow'].enabled = False

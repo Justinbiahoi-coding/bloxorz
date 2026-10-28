@@ -199,3 +199,41 @@ ui3d/
 4. `replay.py` + Solve trong game.
 5. Algorithms Lab: Run, Run all, Replay, Explored.
 6. Rà toàn bộ bằng bàn phím và chuột, chạy test, chụp màn hình từng màn.
+
+## 9. Trạng thái hoàn thành (29/10/2026)
+
+Ảnh chụp từng màn: `docs/ui3d_screens/` (1920×1080, kèm một ảnh 1280×720). Mọi màn đã được chụp kiểm tra ở cả 1280×720 và 1920×1080.
+
+### Tính năng của Youmei (Y1–Y11)
+Giữ đủ tất cả:
+- Hai bộ màn Normal/Advanced, tutorial đứng trước, tên và mẹo của tutorial.
+- Chọn màn bằng ←/→ (giờ dùng lưới, có thêm ↑/↓), Enter để chơi, Esc để quay lại.
+- Màn hình Loading.
+- Các phím trong game, nhớ trước 1 nước, hiệu ứng rơi.
+- Màn kết quả với Next/Retry/Main Menu và các phím N/R/Enter/Esc.
+- Tower và toàn bộ logic engine.
+
+### Tính năng bản 2D (D1–D6)
+- D1–D5: có trong **Algorithms Lab** (chọn màn và thuật toán, số liệu, phát lại lời giải, phát lại các nút đã duyệt, chạy lại).
+- D6 (gợi ý): **Hint** trong lúc chơi.
+
+### Yêu cầu GUI trong đề
+
+| Yêu cầu | Ở đâu |
+|---|---|
+| Bàn chơi đủ loại ô | Đồ họa của Justin; thêm bảng chú giải theo màn (`hud.py`) |
+| Nút New Game, Restart, các nút solver | Thanh công cụ trong game; Solve mở danh sách BFS/DFS/UCS/A*/IDS |
+| Tách khối, đổi khối bằng Space | Có; HUD hiện khối đang điều khiển (Cube A/B) |
+| Thời gian, bộ nhớ đỉnh, số nút mở rộng, độ dài lời giải | Algorithms Lab (thẻ số liệu và bảng so sánh); bộ nhớ đo bằng `tracemalloc` trong `engine/solver.py` |
+| Chọn màn, chạy solver, hiện và phát lại lời giải | Algorithms Lab: Run / Run all / Replay solution / Show explored |
+| Chơi tay: kích switch, thắng/thua | Free Play và Tower |
+
+### Thêm ngoài đặc tả ban đầu
+- Nhạc nền (`assets/tetris.mp3`).
+- Settings được lưu lại (`Source/settings.json`).
+- Đánh dấu màn đã hoàn thành. Màn nhờ Solve giải hộ thì không tính là hoàn thành.
+- Hộp thoại xác nhận trước khi bỏ dở màn hoặc thoát game.
+
+### Còn ngoài phạm vi UI (của người làm solver)
+- `iterative_deepening_search` chưa được viết. UI hiện "not implemented", nút IDS bị làm mờ.
+- UCS vẫn tính mỗi bước chi phí 1, nên kết quả trùng với BFS.

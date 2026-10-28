@@ -56,11 +56,11 @@ class Intro:
         self.overlay = Entity(parent=camera.ui, model='quad', scale=(4, 2), color=color.rgba(0, 0, 0, 0), z=-1)
         self.vignette = Entity(parent=camera.ui, model='quad', texture='textures/vignette',
                                scale=(window.aspect_ratio, 1), color=color.rgba(255, 255, 255, 120), z=-0.5)
-        self.title = Text('BLOXORZ', origin=(0, 0), y=0.22, scale=theme.TITLE, font=theme.FONT_TITLE,
+        self.title = Text('', origin=(0, 0), y=0.22, scale=theme.TITLE, font=theme.FONT_TITLE,
                           color=color.rgba(240, 232, 220, 0))
         self.title.resolution = theme.RESOLUTION[theme.FONT_TITLE]
         self.title.text = 'BLOXORZ'
-        self.sub = Text('T O W E R', origin=(0, 0), y=0.105, scale=2.4, font=theme.FONT_TITLE,
+        self.sub = Text('', origin=(0, 0), y=0.105, scale=2.4, font=theme.FONT_TITLE,
                         color=color.rgba(240, 182, 74, 0))
         self.sub.resolution = theme.RESOLUTION[theme.FONT_TITLE]
         self.sub.text = 'T O W E R'

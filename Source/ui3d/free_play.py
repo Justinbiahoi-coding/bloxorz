@@ -1,44 +1,54 @@
-"""Single-level Free Play for the 3D front-end."""
-from ursina import Button, Entity, Text, Vec3, camera, color, destroy, time, window
+"""Single-level Free Play for the 3D front-end.
 
-from engine import GameSession
+Play is Youmei's: arrows roll, Space switches cubes, R restarts, a move pressed mid-roll is queued,
+falling off tips the block over the edge, and the result offers the next level of the same set.
+The UI around it is the shared HUD (ui3d/hud.py) with Pause, Hint and Solve.
+"""
+from ursina import Entity, Vec3, camera, color, destroy, time, window
+
+from engine import GameSession, solve
 from engine.catalog import TUTORIAL_NAMES, TUTORIAL_TIPS, next_level
 from engine.problem import DIRS
+from . import settings
+from . import widgets as w
 from .block import Block
+from .controls import PlayControls
 from .floor import Floor
+from .hud import GameHUD
+from .screens.dialogs import PauseMenu, ResultDialog
 from .world import aim_sun, move_lantern, point_camera
 
 KEYS = {'left arrow': 'LEFT', 'right arrow': 'RIGHT', 'up arrow': 'DOWN', 'down arrow': 'UP'}
 SKY = (14, 17, 34)
 
 
-class FreePlayGame(Entity):
-    def __init__(self, sun, level_number, mode, on_menu, on_next):
+class FreePlayGame(PlayControls, Entity):
+    """app: on_menu(), on_next(level), on_levels(), on_settings(on_close)."""
+
+    def __init__(self, sun, level_number, mode, on_menu, on_next, on_levels=None, on_settings=None):
         super().__init__()
         self.sun = sun
         self.level_number = level_number
         self.mode = mode
-        self.on_menu = on_menu
-        self.on_next = on_next
+        self.on_menu, self.on_next = on_menu, on_next
+        self.on_levels, self.on_settings = on_levels, on_settings
         self.session = GameSession(level_number)
         self.floor = Floor(self.session, 0, 1, free_play=True)
         self.block = Block()
         self.phase, self.t = 'play', 0.0
         self.queued = None
         self.fall_pieces = []
-        self.result_root = None
+        self.dialog = None
         camera.fov = 42
         self._place_block()
         self._aim()
-        self.hud_name = Text('', position=window.top_left + Vec3(0.06, -0.05, 0), scale=2.2, color=color.white)
-        self.hud_info = Text('', position=window.top_left + Vec3(0.065, -0.12, 0), scale=1.2,
-                             color=color.rgb(255, 200, 87))
-        tip = TUTORIAL_TIPS.get(level_number)
-        self.tip = Text(tip or 'Arrows move  |  Space switches cubes  |  R restarts  |  Esc menu',
-                        origin=(0, 0), y=.40, scale=1.05, wordwrap=70,
-                        color=color.rgb(250, 244, 232), background=True)
+        self.hud = GameHUD({'new_game': self.new_game, 'restart': self.restart, 'hint': self.hint,
+                            'solve': self.solve, 'pause': self.pause})
+        self.hud.set_tip(TUTORIAL_TIPS.get(level_number))
+        self.hud.set_legend({self.session.tile_at(x, y) for x, y in self.session.level.kinds})
         self._hud()
 
+    # ---- view ----
     def _place_block(self):
         self.block.place(self.session, self.session.state, self.floor.base)
 
@@ -64,29 +74,22 @@ class FreePlayGame(Entity):
         window.color = color.rgb(*SKY)
 
     def _hud(self):
-        label = TUTORIAL_NAMES.get(self.level_number, 'LEVEL {}'.format(self.level_number))
-        self.hud_name.text = label
-        self.hud_info.text = 'MOVES {}'.format(self.session.moves)
+        name = TUTORIAL_NAMES.get(self.level_number, 'Level {}'.format(self.level_number))
+        stats = [('Moves', '{:02d}'.format(self.session.moves), '')]
+        if self.session.is_split:
+            stats.append(('Cube', 'AB'[self.session.active], ''))
+        self.hud.set(name, stats)
 
+    # ---- input ----
     def input(self, key):
+        if w.Modal.any_open():
+            return
         if key == 'f':
-            window.fullscreen = not window.fullscreen
+            settings.set('fullscreen', not window.fullscreen)
+            window.fullscreen = settings.get('fullscreen')
             return
         if key == 'escape':
-            if self.phase == 'result':
-                self.on_menu()
-            else:
-                self.on_menu()
-            return
-        if self.phase == 'result':
-            if key in ('r', 'enter') and self._result_kind == 'lose':
-                self.on_next(self.level_number)
-            elif key == 'n' and self._result_kind == 'win':
-                nxt = next_level(self.mode, self.level_number)
-                if nxt is not None:
-                    self.on_next(nxt)
-            elif key == 'r' and self._result_kind == 'win':
-                self.on_next(self.level_number)
+            self.pause()
             return
         if self.phase == 'roll' and (key in KEYS or key == 'space'):
             self.queued = key
@@ -96,8 +99,12 @@ class FreePlayGame(Entity):
         if key == 'r':
             self.restart()
             return
+        if key == 'h':
+            self.hint()
+            return
         if key not in KEYS and key != 'space':
             return
+        self.clear_hint()
         action = KEYS.get(key, 'SWITCH')
         before = self.session.state
         status, _, after = self.session.attempt_move(action)
@@ -114,7 +121,11 @@ class FreePlayGame(Entity):
             self._after_move()
         self._hud()
 
+    # ---- toolbar actions ----
     def restart(self):
+        self.stop_auto()
+        self.clear_hint()
+        self.assisted = False
         self.session.reset()
         self.floor.refresh()
         self._place_block()
@@ -122,7 +133,34 @@ class FreePlayGame(Entity):
         self.phase, self.t = 'play', 0.0
         self._hud()
 
+    def new_game(self):
+        """Back to level select; asks first if this level is under way."""
+        if not self.on_levels:
+            return
+        if self.session.moves and self.phase in ('play', 'roll'):
+            w.ConfirmDialog('Leave this level?', 'Your {} moves here will be lost.'.format(self.session.moves),
+                            self.on_levels, confirm='Leave', danger=True)
+        else:
+            self.on_levels()
+
+    def pause(self):
+        if self.phase not in ('play', 'roll') or w.Modal.any_open():
+            return
+        self.stop_auto()
+        PauseMenu(resume=None, restart=self.restart, new_game=self.new_game,
+                  settings=(lambda: self.on_settings(self.pause)) if self.on_settings else None,
+                  main_menu=self._leave)
+
+    def _leave(self):
+        if self.session.moves and self.phase in ('play', 'roll'):
+            w.ConfirmDialog('Return to main menu?', 'Your progress on this level will be lost.', self.on_menu,
+                            confirm='Leave', danger=True)
+        else:
+            self.on_menu()
+
+    # ---- play ----
     def start_fall(self):
+        self.clear_hint()
         self.fall_pieces = list(self.block.pieces)
         self.phase, self.t = 'fall', 0.0
 
@@ -132,23 +170,20 @@ class FreePlayGame(Entity):
 
     def _show_result(self, kind):
         self.phase = 'result'
-        self._result_kind = kind
-        self.hud_name.enabled = self.hud_info.enabled = self.tip.enabled = False
-        self.result_root = Entity(parent=camera.ui)
-        shade = Entity(parent=self.result_root, model='quad', scale=(4, 2), color=color.rgba(8, 12, 28, 210), z=1)
-        title = 'LEVEL CLEARED' if kind == 'win' else 'YOU FELL'
-        title_color = color.rgb(255, 200, 87) if kind == 'win' else color.rgb(255, 138, 91)
-        Text(title, parent=self.result_root, origin=(0, 0), y=.22, scale=5, color=title_color)
-        Text('Level {}  -  {} moves'.format(self.level_number, self.session.moves),
-             parent=self.result_root, origin=(0, 0), y=.12, scale=1.5, color=color.white)
-        options = []
-        if kind == 'win' and next_level(self.mode, self.level_number) is not None:
-            options.append(('Next Level', lambda: self.on_next(next_level(self.mode, self.level_number))))
-        options.append(('Retry', lambda: self.on_next(self.level_number)))
-        options.append(('Main Menu', self.on_menu))
-        for i, (label, callback) in enumerate(options):
-            Button(label, parent=self.result_root, scale=(.42, .075), y=.01 - i * .11,
-                   color=color.rgb(44, 58, 94), on_click=callback)
+        self.hud.show(False)
+        won = kind == 'win'
+        best = None
+        if won:
+            if not self.assisted:
+                settings.mark_completed(self.level_number)
+            result = solve(self.level_number, 'BFS', measure_memory=False)
+            best = result.solution_length
+        nxt = next_level(self.mode, self.level_number) if won else None
+        self.dialog = ResultDialog(
+            won, self.session.moves, best,
+            on_next=(lambda: self.on_next(nxt)) if nxt is not None else None,
+            on_retry=lambda: self.on_next(self.level_number),
+            on_levels=self.on_levels, on_menu=self.on_menu)
 
     def update(self):
         dt = time.dt
@@ -185,10 +220,15 @@ class FreePlayGame(Entity):
             self.t += dt
             if self.t >= .8:
                 self._show_result('win')
+
     def close(self):
+        self.stop_auto()
+        self.clear_hint()
+        if self.dialog:
+            self.dialog.close()
+        for m in list(w.Modal.stack):
+            m.close()
         self.block.clear()
         self.floor.destroy()
-        for e in (self.hud_name, self.hud_info, self.tip, self.result_root):
-            if e is not None:
-                destroy(e)
+        destroy(self.hud)
         destroy(self)

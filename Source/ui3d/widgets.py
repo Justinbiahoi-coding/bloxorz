@@ -227,14 +227,15 @@ class UIButton(_Focusable):
             s = h * .42
             self.icon_entity = icon(self.top, s, k['ink'], z=-.003)
             icon_w = s + (.012 if text else 0)
-        room = w - 2 * theme.PAD - key_w - icon_w
+        pad = min(theme.PAD, w * .1)               # narrow buttons (tabs) keep more room for the label
+        room = w - 2 * pad - key_w - icon_w
         shown = text.upper() if upper else text
         self.text_entity = label(self.top, shown, size, k['ink'], theme.FONT_LABEL, max_width=room, z=-.003,
                                  origin=(-.5, 0) if align == 'left' else (0, 0))
         if align == 'left':
-            self.text_entity.x = -w / 2 + theme.PAD + icon_w
+            self.text_entity.x = -w / 2 + pad + icon_w
             if self.icon_entity:
-                self.icon_entity.x = -w / 2 + theme.PAD + h * .21
+                self.icon_entity.x = -w / 2 + pad + h * .21
         else:                                   # centre in the room left of the key label
             shift = -key_w / 2
             if self.icon_entity:
@@ -330,9 +331,14 @@ def icon_button(icon, on_click, parent=camera.ui, x=0, y=0, size=theme.BUTTON_H,
 # ---------------------------------------------------------------- containers
 
 class Panel(Entity):
-    """A dark plate with a thin rim. title adds a heading and a divider; content_top is the y under it."""
+    """A dark plate with a thin rim. title adds a heading and a divider; content_top is the y under it.
 
-    def __init__(self, w, h, parent=camera.ui, x=0, y=0, title=None, col=theme.PANEL, title_col=theme.TEXT, **kw):
+    Dialogs use the default centred SUBHEAD title; dense side panels pass small=True for a compact
+    left-aligned caption.
+    """
+
+    def __init__(self, w, h, parent=camera.ui, x=0, y=0, title=None, col=theme.PANEL, title_col=theme.TEXT,
+                 small=False, **kw):
         super().__init__(parent=parent, x=x, y=y, **kw)
         self.w, self.h = w, h
         plate(self, w + 2 * theme.RIM_W, h + 2 * theme.RIM_W, theme.PANEL_RIM, theme.CHAMFER * 1.4,
@@ -341,11 +347,14 @@ class Panel(Entity):
         self.title = None
         self.content_top = h / 2 - theme.PAD
         if title:
-            self.title = label(self, title.upper(), theme.SUBHEAD, title_col, theme.FONT_LABEL,
-                               origin=(0, .5), y=h / 2 - theme.PAD * .9, max_width=w - 2 * theme.PAD, z=-.001)
-            ty = self.title.y - self.title.height - .016
+            size = theme.SMALL if small else theme.SUBHEAD
+            pad = theme.PAD * (.6 if small else .9)
+            self.title = label(self, title.upper(), size, theme.MUTED if small else title_col, theme.FONT_LABEL,
+                               origin=(-.5, .5) if small else (0, .5), x=-w / 2 + theme.PAD if small else 0,
+                               y=h / 2 - pad, max_width=w - 2 * theme.PAD, z=-.001)
+            ty = self.title.y - self.title.height - (.01 if small else .016)
             line(self, w - 2 * theme.PAD, y=ty, z=-.001)
-            self.content_top = ty - .02
+            self.content_top = ty - (.012 if small else .02)
 
 
 class Modal(Entity):
@@ -496,9 +505,9 @@ class LevelTile(_Focusable):
     """
 
     def __init__(self, number, on_pick=None, state='open', selected=False, parent=camera.ui, x=0, y=0,
-                 size=.1, caption=True, group=None, **kw):
+                 size=.1, caption=True, group=None, text=None, on_focus=None, **kw):
         super().__init__(parent=parent, x=x, y=y, **kw)
-        self.number, self.on_pick, self.size = number, on_pick, size
+        self.number, self.on_pick, self.size, self.on_focus = number, on_pick, size, on_focus
         self.state, self.selected = state, selected
         s = size
         self.sel_ring = plate(self, s + 2 * theme.FOCUS_W, s + 2 * theme.FOCUS_W, theme.GOLD_RIM, shade=False,
@@ -506,7 +515,7 @@ class LevelTile(_Focusable):
         self.rim = plate(self, s + 2 * theme.RIM_W, s + 2 * theme.RIM_W, theme.RIM, shade=False, z=.003)
         self.face = plate(self, s, s, theme.FACE, z=.002, collider='box')
         self._hook(self.face)
-        self.num = label(self, '{:02d}'.format(number), theme.HEADING * s / .1, theme.TEXT, theme.FONT_TITLE,
+        self.num = label(self, text or '{:02d}'.format(number), theme.HEADING * s / .1, theme.TEXT, theme.FONT_TITLE,
                          y=s * .1, max_width=s * .86, z=-.002)
         self.badge = None
         self.caption = label(self, '', theme.TINY, theme.MUTED, theme.FONT_LABEL,
@@ -553,6 +562,11 @@ class LevelTile(_Focusable):
             self.caption.text = text.upper()
             self.caption.color = theme.GOLD if self.selected else theme.MUTED
         self.marker.enabled = self.focused
+
+    def set_focus(self, on):
+        super().set_focus(on)
+        if self.focused and self.on_focus:
+            self.on_focus(self.number)
 
     def press(self):
         if self._disabled:
@@ -639,6 +653,59 @@ class Slider(_Focusable):
                 self._follow()
             else:
                 self.dragging = False
+
+
+class ChoiceRow(_Focusable):
+    """LABEL        ‹ value ›   choose from a list with ←/→ or the chevrons. on_change(value)."""
+
+    def __init__(self, text, options, value, on_change=None, fmt=str, parent=camera.ui, x=0, y=0, w=.56,
+                 h=theme.BUTTON_H, group=None, **kw):
+        super().__init__(parent=parent, x=x, y=y, **kw)
+        self.options, self.on_change, self.fmt = list(options), on_change, fmt
+        self.ring = plate(self, w + 2 * theme.FOCUS_W, h + 2 * theme.FOCUS_W, theme.GOLD_RIM, shade=False, z=.004)
+        self.bed = plate(self, w, h, theme.FACE, z=.003, collider='box')
+        self._hook(self.bed)
+        self.name_text = label(self, text.upper(), theme.LABEL, theme.TEXT, theme.FONT_LABEL, origin=(-.5, 0),
+                               x=-w / 2 + theme.PAD, max_width=w * .55, z=-.002)
+        right = w / 2 - theme.PAD
+        mk = lambda d, x: UIButton('', lambda: self.step(-1 if d == 'left' else 1), parent=self, x=x, w=h * .7,
+                                   h=h * .7, icon=lambda p, s, c, **k: icons.chevron(p, s, c, d, **k), marker=None,
+                                   z=-.003)
+        self.next_button = mk('right', right - h * .35)
+        self.prev_button = mk('left', right - h * .35 - .13)
+        self.value_text = label(self, '', theme.LABEL, theme.GOLD, theme.FONT_LABEL, x=right - h * .35 - .065,
+                                z=-.003)
+        if group is not None:
+            group.add(self)
+        self.value = None
+        self.set(value)
+        self.refresh()
+
+    def set(self, value, notify=False):
+        if value not in self.options:
+            value = min(self.options, key=lambda o: abs(o - value)) if isinstance(value, (int, float))                 else self.options[0]
+        self.value = value
+        self.value_text.text = self.fmt(value)
+        if notify and self.on_change:
+            self.on_change(value)
+
+    def step(self, step):
+        i = max(0, min(len(self.options) - 1, self.options.index(self.value) + step))
+        self.set(self.options[i], notify=True)
+
+    def take_key(self, key):
+        if key in ('left arrow', 'right arrow'):
+            self.step(1 if key == 'right arrow' else -1)
+            return True
+        return False
+
+    def refresh(self):
+        self.ring.enabled = self.focused
+        self.bed.color = theme.FACE_HOVER if (self.focused or self.hovered_) else theme.FACE
+        self.name_text.color = theme.GOLD if self.focused else theme.TEXT
+
+    def press(self):
+        self.step(1)
 
 
 class Checkbox(_Focusable):
@@ -790,6 +857,17 @@ class KeyHint(Entity):
     def __init__(self, items, parent=camera.ui, y=-.462, **kw):
         super().__init__(parent=parent, y=y, **kw)
         self.set(items)
+        from . import settings
+        self.enabled = settings.get('key_hints')
+        settings.on_change(self._setting)
+
+    def _setting(self, key, value):
+        if key == 'key_hints':
+            self.enabled = value
+
+    def on_destroy(self):
+        from . import settings
+        settings.off(self._setting)
 
     def _chip(self, group, x, w, h):
         plate(group, w + .004, h + .004, theme.RIM, .004, shade=False, x=x + w / 2, z=.002)

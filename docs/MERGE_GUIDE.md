@@ -48,4 +48,17 @@ Cách 2: chỉ merge `feat/ui3d-redesign` khi đã xong, vì nhánh này chứa 
 4. **Giữ `bootstrap(__file__)` ở đầu `main.py` và `main3d.py`.** Đây là phần tự cài thư viện cho người chấm.
 5. **Không dùng `pygame_menu.events.EXIT`.** Nó thoát với mã 1.
 6. **Không commit `.venv/`.**
-7. **Giao diện 3D đang được thiết kế lại** trên `feat/ui3d-redesign`. Các file `ui3d/app.py`, `ui3d/free_play.py` sẽ được viết lại, giữ nguyên tính năng. Ai cần sửa các file này thì báo trước để tránh conflict.
+7. **Giao diện 3D đã được thiết kế lại** trên `feat/ui3d-redesign`. Ai sửa các file dưới đây trên nhánh khác thì báo trước để tránh conflict.
+
+## Các file 3D đã bị chỉnh trên `feat/ui3d-redesign`
+
+| File | Chủ cũ | Thay đổi |
+|---|---|---|
+| `ui3d/app.py`, `ui3d/free_play.py` | Youmei | Viết lại phần giao diện, giữ đủ tính năng: 2 bộ màn, tutorial, mẹo, Next / Retry, nhớ trước 1 nước, phím tắt |
+| `ui3d/game.py` | Justin | HUD mới (`hud.py`), Esc mở Pause, H gợi ý, Solve, `menu_hold` cho màn tiêu đề, `on_finish` khi lên tới mái |
+| `ui3d/intro.py` | Justin | Tiêu đề kiểu mới, ẩn nút Enter Building khi menu mở, giới hạn dt, lớp phủ theo tỉ lệ cửa sổ thật |
+| `ui3d/world.py` | Justin | Bật âm thanh (OpenAL); **sửa lỗi** `lights()` lưu màu gốc bằng tham chiếu sống nên ánh sáng cộng dồn mỗi lần dựng lại intro |
+| `ui3d/block.py` | Justin | Hệ số `SPEED` cho tốc độ lăn (Settings) |
+| `engine/solver.py` | (solver) | Đo peak memory, thêm `expanded`, `solution_length` |
+
+File mới: `ui3d/theme.py`, `icons.py`, `widgets.py`, `hud.py`, `controls.py`, `autoplay.py`, `settings.py`, `audio.py`, `screens/*`, font tĩnh `assets/fonts/Fredoka-*.ttf`, `tools/make_font_weights.py`.

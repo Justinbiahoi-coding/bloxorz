@@ -43,20 +43,33 @@ The game uses `pygame-ce` and `pygame-menu-ce` (drop-in forks, still `import pyg
 `import pygame_menu`) because they ship ready-made wheels for every current Python,
 including 3.14. `ursina` is pinned to 5.2.0: newer versions change the font API.
 
-## Free Play
+## The 3D game
 
-Free Play offers two level sets in both front-ends:
+The opening film plays once (any key skips it) and stops on the title over the tower doors, where
+the main menu sits:
 
-- **Normal** — stages without advanced tiles.
-- **Advanced** — starts with tutorials for fragile tiles, bridges, heavy switches, and split cubes, followed by the advanced stages.
+- **Tower** — the climb: ten floors from the lobby to the roof, one elevator ride between them.
+- **Free Play** — any single stage. *Normal* has no advanced tiles; *Advanced* starts with four
+  tutorials (fragile tiles, bridges, heavy switches, split cubes). Cleared stages are marked.
+- **Algorithms** — pick a stage and a solver (BFS, DFS, UCS, A*, IDS), run it from the stage start
+  and read the time, peak memory, expanded nodes and solution length; *Run all* compares every
+  solver on the same stage. Replay the solution, or watch the expanded nodes light up the board.
+- **Settings** — music volume, move speed, fullscreen, key hints, tile legend; saved in
+  `settings.json` next to the game.
 
-3D Free Play controls:
+In a game the toolbar at the top right has **New Game**, **Restart**, **Hint** (a ghost block on
+the next best position) and **Solve** (pick a solver; it plays the remaining moves from where you
+stand, and any key takes the controls back).
 
-- Arrow keys — roll
-- Space — switch active split cube
-- R — restart level
-- Esc — return to menu
-- F — toggle fullscreen
+| Key | Action |
+|---|---|
+| Arrow keys | Roll the block |
+| Space | Switch the active cube when the block is split |
+| R | Restart the level / floor |
+| H | Hint |
+| Esc | Pause (Resume, Restart, New Game, Settings, Main Menu) |
+| F | Fullscreen |
+| Enter | Confirm in menus |
 
 ## Test
 
@@ -71,3 +84,4 @@ Free Play offers two level sets in both front-ends:
 - [Advanced mechanics](../docs/ADVANCED_MECHANICS.md)
 - [Algorithm implementation guide](../docs/ALGORITHM_IMPLEMENTATION_GUIDE.md)
 - [Solver implementation guide](../docs/SOLVER_IMPLEMENTATION.md)
+- [3D UI specification](../docs/UI3D_SPEC.md) and [screenshots](../docs/ui3d_screens/)
