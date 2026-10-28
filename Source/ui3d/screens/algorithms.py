@@ -170,14 +170,41 @@ class AlgorithmsLab(Entity):
         self._show_compare()
 
     def _aim(self):
-        c, span = self.floor.centre, self.floor.span
-        dist = max(24.0, min(52.0, span * 1.85 + 15.0))
-        target = Vec3(c.x - dist * .24, self.floor.base + .4, c.z - dist * .07)   # board sits right of centre
+        """Frame the whole playfield (and the lift over the goal) in the space right of the panels, above
+        the playback bar: start from the usual steep view, then nudge and zoom until it fits."""
+        import builtins
+        import math
+        from panda3d.core import Point2, Point3
+        f = self.floor
+        bx0, by0, bx1, by1 = f.bbox
+        pts = [Point3(*f.at(x, y, h)) for x in (bx0 - .6, bx1 + .6) for y in (by0 - .6, by1 + .6) for h in (0, 2.8)]
+        a = window.aspect_ratio / 2
+        rx0, rx1 = (-a + .6) / a, (a - .04) / a            # target area in film units (-1..1)
+        ry0, ry1 = -.56, .9
+        view = Vec3(0, .87, -.5)
+        target = Vec3(f.centre.x, f.base + .4, f.centre.z)
+        dist = max(20.0, f.span * 1.6 + 10.0)
         camera.fov = 42
-        camera.position = target + Vec3(0, dist * .87, -dist * .5)
+        out = Point2()
+        for _ in range(30):
+            camera.position = target + view * dist
+            point_camera(camera, target)
+            xs, ys = [], []
+            for q in pts:
+                camera.lens.project(camera.getRelativePoint(builtins.render, q), out)
+                xs.append(out.x)
+                ys.append(out.y)
+            fx, fy = camera.lens.getFov()
+            hx, hy = dist * math.tan(math.radians(fx / 2)), dist * math.tan(math.radians(fy / 2))
+            ex = (min(xs) + max(xs)) / 2 - (rx0 + rx1) / 2
+            ey = (min(ys) + max(ys)) / 2 - (ry0 + ry1) / 2
+            ahead = Vec3(camera.forward.x, 0, camera.forward.z).normalized()
+            target += camera.right * (ex * hx * .8) + ahead * (ey * hy * .9)
+            dist *= max((max(xs) - min(xs)) / (rx1 - rx0), (max(ys) - min(ys)) / (ry1 - ry0)) ** .7
+        camera.position = target + view * dist
         point_camera(camera, target)
-        aim_sun(self.sun, c)
-        move_lantern(self.sun, c)
+        aim_sun(self.sun, f.centre)
+        move_lantern(self.sun, f.centre)
         window.color = color.rgb(*SKY)
 
     # ------------------------------------------------------------------ running
@@ -441,7 +468,7 @@ class AlgorithmsLab(Entity):
 
     # ------------------------------------------------------------------ input
     def input(self, key):
-        if w.Modal.any_open():
+        if w.Modal.busy():
             return
         if key == 'escape':
             self._back()

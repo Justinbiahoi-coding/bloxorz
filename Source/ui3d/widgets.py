@@ -6,6 +6,7 @@ drive them from the keyboard: set_focus(on), press(), .disabled, .enabled, .grou
 
 Labels shrink to fit the space they are given, so nothing is cut off at 1280x720 or 1920x1080.
 """
+from panda3d.core import ClockObject
 from ursina import Entity, Mesh, Text, Vec3, camera, color, destroy, invoke, mouse
 
 from . import icons, theme
@@ -358,16 +359,25 @@ class Panel(Entity):
 
 
 class Modal(Entity):
-    """A veil over everything and a panel in the middle. Modal.any_open() tells screens to keep quiet."""
+    """A veil over everything and a panel in the middle.
+
+    Each dialog opens in front of the one under it (its own depth and veil), so a confirm over Settings
+    covers it instead of mixing with it. Only the top dialog takes keys, and not the key that opened it:
+    Ursina hands the current key to entities created while it is being handled, so Esc would otherwise
+    open the pause menu and close it again in the same frame. Screens ask Modal.busy() before using a key.
+    """
 
     stack = []
+    _closed_frame = -1
 
     def __init__(self, w=.6, h=.42, title=None, parent=camera.ui, **kw):
-        super().__init__(parent=parent, z=-.3, **kw)
+        depth = len([m for m in Modal.stack if m])
+        super().__init__(parent=parent, z=-.3 - .1 * depth, **kw)
         self.veil = Entity(parent=self, model='quad', scale=(8, 2), color=theme.DIM, z=.02, collider='box')
         self.panel = Panel(w, h, parent=self, title=title)
         self.panel.scale = .95
         self.panel.animate_scale(1, duration=theme.MEDIUM)
+        self.born = _frame()
         Modal.stack.append(self)
 
     @classmethod
@@ -375,10 +385,25 @@ class Modal(Entity):
         cls.stack = [m for m in cls.stack if m]
         return bool(cls.stack)
 
+    @classmethod
+    def busy(cls):
+        """For screens under the dialogs: a dialog is open, or one just closed on this very key."""
+        return cls.any_open() or cls._closed_frame == _frame()
+
+    def has_keys(self):
+        """This dialog is on top and was not opened by the key being handled now."""
+        Modal.any_open()
+        return bool(Modal.stack) and Modal.stack[-1] is self and _frame() > self.born
+
     def close(self):
         if self in Modal.stack:
             Modal.stack.remove(self)
+        Modal._closed_frame = _frame()
         destroy(self)
+
+
+def _frame():
+    return ClockObject.getGlobalClock().getFrameCount()
 
 
 class ConfirmDialog(Modal):
@@ -408,6 +433,8 @@ class ConfirmDialog(Modal):
         self.group.focus(self.cancel_button if danger else self.confirm_button)
 
     def input(self, key):
+        if not self.has_keys():
+            return
         if key == 'escape':
             self._cancel()
         else:
@@ -913,7 +940,7 @@ class Toast(Entity):
     H = .052
 
     def __init__(self, text, parent=camera.ui, duration=2.4, col=theme.TEXT, **kw):
-        super().__init__(parent=parent, z=-.4, **kw)
+        super().__init__(parent=parent, z=-.9, **kw)          # over any dialog
         t = label(self, text, theme.BODY, col, theme.FONT_LABEL, max_width=1.0, z=-.002)
         w = t.width + .06
         plate(self, w + 2 * theme.RIM_W, self.H + 2 * theme.RIM_W, theme.PANEL_RIM, shade=False, z=.002)

@@ -54,7 +54,7 @@ class MainMenu(Entity):
                         application.quit, confirm='Quit', cancel='Stay')
 
     def input(self, key):
-        if w.Modal.any_open():
+        if w.Modal.busy():
             return
         if key == 'escape':
             self._exit()

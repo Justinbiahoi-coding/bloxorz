@@ -2,6 +2,8 @@
 
 Play is Youmei's: arrows roll, Space switches cubes, R restarts, a move pressed mid-roll is queued,
 falling off tips the block over the edge, and the result offers the next level of the same set.
+The level is dressed as a storey of the tower (ui3d/floor.py): ruined room, furniture, the dead on their
+beat, and the goal is the elevator, whose doors close when the block is in.
 The UI around it is the shared HUD (ui3d/hud.py) with Pause, Hint and Solve.
 """
 from ursina import Entity, Vec3, camera, color, destroy, time, window
@@ -14,6 +16,7 @@ from . import widgets as w
 from .block import Block
 from .controls import PlayControls
 from .floor import Floor
+from .prowl import Prowlers
 from .hud import GameHUD
 from .screens.dialogs import PauseMenu, ResultDialog
 from .world import aim_sun, move_lantern, point_camera
@@ -34,6 +37,7 @@ class FreePlayGame(PlayControls, Entity):
         self.on_levels, self.on_settings = on_levels, on_settings
         self.session = GameSession(level_number)
         self.floor = Floor(self.session, 0, 1, free_play=True)
+        self.prowl = Prowlers(self.floor, count=4, seed=level_number)    # only walking their beat here
         self.block = Block()
         self.phase, self.t = 'play', 0.0
         self.queued = None
@@ -82,7 +86,7 @@ class FreePlayGame(PlayControls, Entity):
 
     # ---- input ----
     def input(self, key):
-        if w.Modal.any_open():
+        if w.Modal.busy():
             return
         if key == 'f':
             settings.set('fullscreen', not window.fullscreen)
@@ -189,6 +193,7 @@ class FreePlayGame(PlayControls, Entity):
         dt = time.dt
         self.block.tick(dt, self.phase == 'play')
         self.floor.animate(time.time())
+        self.prowl.update(dt)
         if self.phase in ('play', 'roll'):
             pos, target = self._camera_for()
             k = min(1.0, dt * 3.0)
@@ -216,8 +221,11 @@ class FreePlayGame(PlayControls, Entity):
                 piece.rotation_x += dt * 220
             if self.t >= .7:
                 self._show_result('lose')
-        elif self.phase == 'win':
+        elif self.phase == 'win':                     # in the elevator: the doors close, as in the tower
             self.t += dt
+            if self.floor.lift:
+                k = min(1.0, self.t / .6)
+                self.floor.lift.set_open(1 - k * k * (3 - 2 * k))
             if self.t >= .8:
                 self._show_result('win')
 
@@ -229,6 +237,7 @@ class FreePlayGame(PlayControls, Entity):
         for m in list(w.Modal.stack):
             m.close()
         self.block.clear()
+        self.prowl.destroy()
         self.floor.destroy()
         destroy(self.hud)
         destroy(self)

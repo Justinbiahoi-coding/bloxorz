@@ -137,7 +137,7 @@ class LevelSelect(Entity):
             self.on_start(self.level, self.mode)
 
     def input(self, key):
-        if w.Modal.any_open():
+        if w.Modal.busy():
             return
         if key == 'escape':
             self.on_back()

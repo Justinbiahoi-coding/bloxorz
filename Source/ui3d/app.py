@@ -56,8 +56,9 @@ class App3D(Entity):
             self.loading_root.close()
             self.loading_root = None
 
-    def _load(self, caption, build, then=None):
-        """Show the loading screen, run build() (which returns the new scene), then call then()."""
+    def _load(self, caption, build, then=None, key=None):
+        """Show the loading screen, run build() (which returns the new scene), then call then().
+        key names the kind of scene, so the bar can tell how far the build has got."""
         self._clear_menu()
         self._clear_scene()
         self._clear_loading()
@@ -65,8 +66,9 @@ class App3D(Entity):
         self.loading_root = LoadingScreen(caption)
 
         def steps():
-            yield .2, caption
-            self.scene = build()
+            yield .03, caption
+            with self.loading_root.building(key, .03, .97):
+                self.scene = build()
             yield 1.0, 'Ready'
 
         def done():
@@ -88,7 +90,7 @@ class App3D(Entity):
         if self._title_up:
             self._show_main_menu()
             return
-        self._load('Loading', self._build_title, self._await_title)
+        self._load('Loading', self._build_title, self._await_title, 'title')
 
     def _new_tower_game(self):
         return TowerGame(self.sun, on_menu=self._to_menu, on_new_game=self.new_tower,
@@ -142,7 +144,7 @@ class App3D(Entity):
         self.scene.intro.skip_or_enter()         # at the title this walks into the lobby
 
     def new_tower(self):
-        self._later(self._load, 'Back to the lobby', self._build_tower_skip, self._playing)
+        self._later(self._load, 'Back to the lobby', self._build_tower_skip, self._playing, 'tower')
 
     def _build_tower_skip(self):
         scene = self._new_tower_game()
@@ -173,7 +175,8 @@ class App3D(Entity):
         self.free_level = level
         if mode is not None:
             self.free_mode = mode
-        self._later(self._load, 'Loading {}'.format(level_label(level)), self._build_free_play, self._playing)
+        self._later(self._load, 'Loading {}'.format(level_label(level)), self._build_free_play, self._playing,
+                    'free_play')
 
     def _build_free_play(self):
         level, mode = self.free_level, self.free_mode
@@ -185,7 +188,7 @@ class App3D(Entity):
     # ---- algorithms ----
     def open_algorithms(self):
         self._later(self._load, 'Loading the solver lab', lambda: AlgorithmsLab(self.sun, self._to_menu),
-                    lambda: setattr(self, 'state', 'algorithms'))
+                    lambda: setattr(self, 'state', 'algorithms'), 'lab')
 
     # ---- settings ----
     def open_settings(self, on_close=None):
@@ -193,6 +196,6 @@ class App3D(Entity):
 
     # ---- keys for the menus ----
     def input(self, key):
-        if key == 'f' and self.state in ('main', 'levels', 'loading', 'intro') and not w.Modal.any_open():
+        if key == 'f' and self.state in ('main', 'levels', 'loading', 'intro') and not w.Modal.busy():
             settings.set('fullscreen', not window.fullscreen)
             apply_all()

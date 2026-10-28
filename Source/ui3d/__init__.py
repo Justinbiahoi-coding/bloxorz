@@ -15,6 +15,8 @@ def run(fullscreen=False, size=None):
     app = Ursina(title='Bloxorz Tower', fullscreen=fullscreen, borderless=False, size=size,
                  development_mode=False)
     application.asset_folder = ASSETS
+    from . import loadfast
+    loadfast.install()                           # Ursina re-scans the asset folder on every model load
     Entity.default_shader = None                 # use Panda3D's own lighting (see world.lights)
     from .theme import FONT_BODY
     Text.default_font = FONT_BODY                # Medium: the variable Fredoka loads as Light

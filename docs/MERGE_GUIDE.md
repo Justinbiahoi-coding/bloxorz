@@ -59,6 +59,8 @@ Cách 2: chỉ merge `feat/ui3d-redesign` khi đã xong, vì nhánh này chứa 
 | `ui3d/intro.py` | Justin | Tiêu đề kiểu mới, ẩn nút Enter Building khi menu mở, giới hạn dt, lớp phủ theo tỉ lệ cửa sổ thật |
 | `ui3d/world.py` | Justin | Bật âm thanh (OpenAL); **sửa lỗi** `lights()` lưu màu gốc bằng tham chiếu sống nên ánh sáng cộng dồn mỗi lần dựng lại intro |
 | `ui3d/block.py` | Justin | Hệ số `SPEED` cho tốc độ lăn (Settings) |
+| `ui3d/floor.py` | Justin | Free Play và Lab dùng chung tầng như tháp: có đồ đạc và thang máy ở ô đích (bỏ ô đích riêng của Free Play) |
+| `ui3d/__init__.py` | Justin | Gọi `loadfast.install()`: Ursina 5.2 quét lại cả thư mục assets mỗi lần nạp model, làm tháp mất vài chục giây để dựng |
 | `engine/solver.py` | (solver) | Đo peak memory, thêm `expanded`, `solution_length` |
 
-File mới: `ui3d/theme.py`, `icons.py`, `widgets.py`, `hud.py`, `controls.py`, `autoplay.py`, `settings.py`, `audio.py`, `screens/*`, font tĩnh `assets/fonts/Fredoka-*.ttf`, `tools/make_font_weights.py`.
+File mới: `ui3d/loadfast.py`, `ui3d/theme.py`, `icons.py`, `widgets.py`, `hud.py`, `controls.py`, `autoplay.py`, `settings.py`, `audio.py`, `screens/*`, font tĩnh `assets/fonts/Fredoka-*.ttf`, `tools/make_font_weights.py`.

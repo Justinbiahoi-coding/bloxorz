@@ -35,7 +35,7 @@ class _MenuDialog(w.Modal):
         return go
 
     def input(self, key):
-        if w.Modal.stack and w.Modal.stack[-1] is not self:
+        if not self.has_keys():
             return
         if key == 'escape':
             self.close()

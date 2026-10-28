@@ -39,7 +39,8 @@ class SettingsScreen(w.Modal):
                    parent=p, y=y - 4 * step, w=rw, group=self.group)
         self.reset = w.UIButton('Clear Free Play progress', self._ask_reset, parent=p, y=y - 5 * step, w=rw,
                                 kind='danger', group=self.group)
-        self.back = w.UIButton('Back', self.close, parent=p, y=-h / 2 + theme.PAD + theme.BUTTON_H / 2 + .004,
+        self.reset.disabled = not settings.get('completed')       # nothing to forget yet
+        self.back_button = w.UIButton('Back', self.close, parent=p, y=-h / 2 + theme.PAD + theme.BUTTON_H / 2 + .004,
                                w=rw, kind='primary', key='Esc', group=self.group)
         self.group.focus_first()
 
@@ -53,15 +54,20 @@ class SettingsScreen(w.Modal):
 
     def _ask_reset(self):
         n = len(settings.get('completed'))
+        if not n or len(w.Modal.stack) > 1:
+            return
         w.ConfirmDialog('Clear progress?', 'Forget the {} Free Play level{} marked as completed.'.format(
             n, '' if n == 1 else 's'), self._reset, confirm='Clear', danger=True)
 
     def _reset(self):
         settings.set('completed', [])
         w.Toast('Free Play progress cleared')
+        if self:
+            self.reset.disabled = True
+            self.group.focus(self.back_button)
 
     def input(self, key):
-        if w.Modal.stack and w.Modal.stack[-1] is not self:      # a confirm dialog on top has the keys
+        if not self.has_keys():                # a confirm dialog on top has the keys
             return
         if key == 'escape':
             self.close()

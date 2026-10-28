@@ -233,6 +233,14 @@ Giữ đủ tất cả:
 - Settings được lưu lại (`Source/settings.json`).
 - Đánh dấu màn đã hoàn thành. Màn nhờ Solve giải hộ thì không tính là hoàn thành.
 - Hộp thoại xác nhận trước khi bỏ dở màn hoặc thoát game.
+- Free Play và Algorithms Lab dựng màn giống một tầng của tháp: phòng đổ nát, đồ đạc, đích là thang máy. Riêng Free Play có thêm zombie đi quanh và cửa thang đóng lại khi thắng. Cả 57 màn đều lấy từ `Source/levels/*.json`, tháp dùng 10 màn trong số đó (`engine/tower.py`).
+- Nạp nhanh: cache đường dẫn và model trong `ui3d/loadfast.py`. Thanh loading chạy theo số model đã nạp.
+
+### Sửa sau lần chơi thử đầu (29/10/2026)
+- Esc ở menu chính, tháp và các màn khác: hộp thoại vừa mở nhận luôn phím Esc đã mở nó nên tự đóng. Giờ mỗi hộp thoại bỏ qua phím của frame tạo ra nó (`Modal.has_keys`). Màn bên dưới hỏi `Modal.busy()`.
+- Hộp thoại chồng lên nhau (Clear progress trên Settings) bị đè chữ: mỗi hộp thoại mới nằm ở một lớp sâu riêng, che hẳn hộp thoại dưới.
+- Nút "Clear Free Play progress" bị làm mờ khi chưa có màn nào hoàn thành.
+- Camera của Lab tự canh cho cả bàn chơi nằm trọn bên phải bảng điều khiển.
 
 ### Còn ngoài phạm vi UI (của người làm solver)
 - `iterative_deepening_search` chưa được viết. UI hiện "not implemented", nút IDS bị làm mờ.

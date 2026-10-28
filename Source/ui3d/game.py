@@ -204,7 +204,7 @@ class TowerGame(PlayControls, Entity):
             if not self.intro.at_title and not key.endswith(' up'):
                 self.intro.skip_or_enter()
             return
-        if w.Modal.any_open():
+        if w.Modal.busy():
             return
         if key == 'escape':
             if self.phase in ('play', 'roll'):
