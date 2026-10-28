@@ -20,6 +20,8 @@ def run(fullscreen=False, size=None):
     Entity.default_shader = None                 # use Panda3D's own lighting (see world.lights)
     from .theme import FONT_BODY
     Text.default_font = FONT_BODY                # Medium: the variable Fredoka loads as Light
+    from .widgets import keep_glyphs
+    keep_glyphs()                                # Ursina clears every font's glyphs on each new Text
     from panda3d.core import NodePath  # noqa: F401  (render is a builtin set up by Ursina)
     import builtins
     sun = lights(builtins.render)

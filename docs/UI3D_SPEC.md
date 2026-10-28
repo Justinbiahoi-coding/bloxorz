@@ -241,6 +241,9 @@ Giữ đủ tất cả:
 - Hộp thoại chồng lên nhau (Clear progress trên Settings) bị đè chữ: mỗi hộp thoại mới nằm ở một lớp sâu riêng, che hẳn hộp thoại dưới.
 - Nút "Clear Free Play progress" bị làm mờ khi chưa có màn nào hoàn thành.
 - Camera của Lab tự canh cho cả bàn chơi nằm trọn bên phải bảng điều khiển.
+- Nút ‹ › của Lab và các tab ở hai đầu chỉ bấm được một phần: tia chuột của Panda3D bỏ qua cả nhánh widget khi trượt khỏi khối bao của nhánh. Giờ các nhánh UI không bị loại bỏ nữa (`widgets.always_hit`).
+- Tab Normal/Advanced bị khựng: Ursina xóa hết glyph đã vẽ của font mỗi khi tạo Text mới. Giờ mỗi font giữ một cỡ cố định và giữ glyph (`widgets.keep_glyphs`). Hai lưới màn được dựng sẵn, Tab chỉ đổi qua lại.
+- Mở Level Select từ màn kết quả thì dựng lại cảnh tiêu đề phía sau, giống khi mở từ menu chính.
 
 ### Còn ngoài phạm vi UI (của người làm solver)
 - `iterative_deepening_search` chưa được viết. UI hiện "not implemented", nút IDS bị làm mờ.

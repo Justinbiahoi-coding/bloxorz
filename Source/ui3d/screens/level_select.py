@@ -6,7 +6,7 @@ tutorial tips, ←/→ through the levels, Enter to start, Esc back.
 """
 import json
 
-from ursina import Entity, camera, color, destroy, window
+from ursina import Entity, camera, color, destroy, invoke, window
 
 from engine.catalog import LEVEL_DIR, TUTORIAL_LEVELS, TUTORIAL_TIPS, level_label, levels_for_mode
 from .. import settings, theme
@@ -41,11 +41,11 @@ class LevelSelect(Entity):
     """on_start(level, mode) when a level is chosen; on_back() for Esc / Back."""
 
     def __init__(self, on_start, on_back, mode='normal', level=None, title='Free Play', action='Play'):
-        super().__init__(parent=camera.ui, z=-.1)            # in front of the title shot's lettering
+        super().__init__(parent=camera.ui, z=-.6)            # in front of the title shot's lettering and vignette
         self.on_start, self.on_back = on_start, on_back
         a = window.aspect_ratio / 2
         Entity(parent=self, model='quad', scale=(a * 2 + .1, 1.1), color=color.rgba(8, 9, 13, 200), z=.06)
-        self.back = w.back_button(on_back, parent=self, x=-a + .14, y=.44)
+        self.back_button = w.back_button(on_back, parent=self, x=-a + .14, y=.44)
         w.label(self, title.upper(), theme.HEADING, theme.TEXT, theme.FONT_TITLE, origin=(-.5, .5),
                 x=-a + .06, y=.40)
         self.tabs = w.Tabs([('Normal', 'normal'), ('Advanced', 'advanced')], mode, self._mode, parent=self,
@@ -67,40 +67,59 @@ class LevelSelect(Entity):
         self.start = w.UIButton(action, self._start, parent=p, y=-ph / 2 + theme.PAD + theme.BUTTON_H / 2 + .004,
                                 w=pw - 2 * theme.PAD, kind='primary', key='Enter', marker=None)
 
+        self.grids = {}             # mode -> (grid entity, tiles, focus group); both are kept, Tab only swaps
         self.grid = None
         self.mode = mode
         self.level = level
-        self._build_grid()
+        self._show_grid()
+        other = 'advanced' if mode == 'normal' else 'normal'
+        invoke(self._prebuild, other, delay=.3)          # the other set, while the player reads this one
         w.KeyHint([('arrows', 'Choose'), ('Enter', action), ('Tab', 'Normal / Advanced'), ('Esc', 'Back')],
                   parent=self)
 
     # ---- grid ----
-    def _build_grid(self):
-        if self.grid is not None:
-            destroy(self.grid)
+    def _build_grid(self, mode):
         a = window.aspect_ratio / 2
-        self.grid = Entity(parent=self)
+        grid = Entity(parent=self, enabled=False)
+        levels = levels_for_mode(mode)
+        group = w.FocusGroup(grid_columns=COLUMNS, wrap=False)
+        size, gap = .082, .028
+        x0, y0 = -a + .06 + size / 2 + theme.FOCUS_W, .13
+        tiles = {}
+        for i, n in enumerate(levels):
+            r, c = divmod(i, COLUMNS)
+            tiles[n] = w.LevelTile(n, self._pick, 'done' if settings.is_completed(n) else 'open', False,
+                                   parent=grid, x=x0 + c * (size + gap), y=y0 - r * (size + gap + .03), size=size,
+                                   caption=False, group=group, text=tile_text(n), on_focus=self._select)
+        self.grids[mode] = (grid, tiles, group)
+
+    def _prebuild(self, mode):
+        if self and mode not in self.grids:
+            self._build_grid(mode)
+
+    def _show_grid(self):
+        if self.mode not in self.grids:
+            self._build_grid(self.mode)
+        if self.grid is not None:
+            self.grid.enabled = False
+            old = self.tiles.get(self.level_shown)
+            if old:
+                old.set(selected=False)
+        self.grid, self.tiles, self.group = self.grids[self.mode]
+        self.grid.enabled = True
         self.levels = levels_for_mode(self.mode)
         if self.level not in self.levels:
             self.level = self.levels[0] if self.levels else None
-        self.group = w.FocusGroup(grid_columns=COLUMNS, wrap=False)
-        size, gap = .082, .028
-        x0, y0 = -a + .06 + size / 2 + theme.FOCUS_W, .13
-        self.tiles = {}
-        for i, n in enumerate(self.levels):
-            r, c = divmod(i, COLUMNS)
-            t = w.LevelTile(n, self._pick, 'done' if settings.is_completed(n) else 'open', n == self.level,
-                            parent=self.grid, x=x0 + c * (size + gap), y=y0 - r * (size + gap + .03), size=size,
-                            caption=False, group=self.group, text=tile_text(n), on_focus=self._select)
-            self.tiles[n] = t
+        self.level_shown = self.level
         if self.level in self.tiles:
+            self.tiles[self.level].set(selected=True)
             self.group.focus(self.tiles[self.level])
         self._describe()
 
     def _mode(self, mode):
         self.mode = mode
         self.level = None
-        self._build_grid()
+        self._show_grid()
 
     def _select(self, level_number):
         if level_number == self.level:
@@ -108,7 +127,7 @@ class LevelSelect(Entity):
         old = self.tiles.get(self.level)
         if old:
             old.set(selected=False)
-        self.level = level_number
+        self.level = self.level_shown = level_number
         self.tiles[level_number].set(selected=True)
         self._describe()
 

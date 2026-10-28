@@ -6,7 +6,7 @@ drive them from the keyboard: set_focus(on), press(), .disabled, .enabled, .grou
 
 Labels shrink to fit the space they are given, so nothing is cut off at 1280x720 or 1920x1080.
 """
-from panda3d.core import ClockObject
+from panda3d.core import ClockObject, OmniBoundingVolume
 from ursina import Entity, Mesh, Text, Vec3, camera, color, destroy, invoke, mouse
 
 from . import icons, theme
@@ -34,12 +34,50 @@ def label(parent, text, size=theme.BODY, col=theme.TEXT, font=theme.FONT_BODY, o
     wrap = kw.pop('wordwrap', None)
     t = Text('', parent=parent, scale=size, color=col, origin=origin, font=font, **kw)
     t.use_tags = False
-    t.resolution = theme.RESOLUTION.get(font, 96)
-    t.text = text
+    t.text = text                       # (each font's size is fixed once, see keep_glyphs)
     if wrap:
         t.wordwrap = wrap               # Ursina only wraps text that is already there
     fit(t, max_width)
     return t
+
+
+def keep_glyphs():
+    """Stop Ursina throwing away the glyphs it has drawn.
+
+    Ursina 5.2's Text calls font.clear() and resets the font's pixel size every time a Text is made, and
+    all Texts share the font object, so each new label rasterised its letters again (about 10 ms a glyph
+    at our sizes): switching a tab or describing a level stuttered. Here each font is set up once, at its
+    size from theme.RESOLUTION, and keeps its glyphs; Text.resolution no longer changes it.
+    """
+    from ursina import text as ursina_text
+    ready = {}
+
+    def set_font(self, value):
+        font = loader.loadFont(value)           # noqa: F821  (Panda3D builtin)
+        if not font:
+            return
+        self._font = font
+        if value not in ready:
+            font.clear()
+            font.setPixelsPerUnit(theme.RESOLUTION.get(value, ursina_text.Text.default_resolution))
+            ready[value] = True
+        font.setLineHeight(self.line_height)
+        self.text = self.raw_text
+
+    def set_resolution(self, value):
+        pass                                    # one size per font, fixed in set_font
+
+    Text.font = Text.font.setter(set_font)
+    Text.resolution = Text.resolution.setter(set_resolution)
+
+
+def warm_glyphs():
+    """Draw every character once in each UI font. Panda3D renders a glyph the first time it is used, at
+    about 10 ms each at our resolutions, so new text (a level's description) would stutter otherwise."""
+    import string
+    chars = string.ascii_letters + string.digits + string.punctuation + ' ·—‹›×'
+    for font in theme.RESOLUTION:
+        destroy(label(camera.ui, chars, font=font, enabled=False))
 
 
 def fit(text_entity, max_width):
@@ -167,6 +205,21 @@ class _Focusable(Entity):
         target.on_click = self.press
         target.on_mouse_enter = self._enter
         target.on_mouse_exit = self._exit
+        always_hit(target)
+
+
+def always_hit(entity):
+    """Never let Panda3D skip this entity's branch when it looks for what the mouse is over.
+
+    The mouse ray skips a whole branch when it misses the branch's bounding volume, and for composite
+    widgets that volume left out the outer parts of their buttons (the ‹ › of a Stepper, the end tabs):
+    only the half nearest the middle could be clicked. The UI is small, so nothing in it is culled.
+    """
+    node = entity
+    while node is not None and node != camera.ui:
+        node.node().setBounds(OmniBoundingVolume())
+        node.node().setFinal(True)
+        node = node.parent
 
     def refresh(self):
         pass

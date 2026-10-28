@@ -33,6 +33,7 @@ class App3D(Entity):
         self.state = 'loading'
         self.first_title = True       # the opening film plays in full only the first time
         self.free_mode, self.free_level = 'normal', None
+        self.after_title = None       # 'levels': open level select once the title shot is up
         settings.load()
         apply_all()
         audio.start()
@@ -87,6 +88,7 @@ class App3D(Entity):
 
     # ---- main menu: the opening's title shot ----
     def main_menu(self):
+        self.after_title = None
         if self._title_up:
             self._show_main_menu()
             return
@@ -97,6 +99,8 @@ class App3D(Entity):
                          on_settings=self.open_settings, on_finish=self._tower_done)
 
     def _build_title(self):
+        if self.first_title:
+            w.warm_glyphs()                      # under the first loading screen, not on the first menu
         scene = self._new_tower_game()
         scene.menu_hold = True
         scene.intro.show_button = False
@@ -110,7 +114,11 @@ class App3D(Entity):
 
     def update(self):
         if self.state == 'intro' and self._title_up and self.scene.intro.at_title:
-            self._show_main_menu()
+            if self.after_title == 'levels':
+                self.after_title = None
+                self._show_levels()
+            else:
+                self._show_main_menu()
 
     def _title_letters(self, on):
         if self._title_up:
@@ -159,11 +167,17 @@ class App3D(Entity):
 
     # ---- free play ----
     def open_levels(self, mode=None, level=None):
+        """Level select stands over the title shot; coming from a game, that shot is built again first."""
         if mode is not None:
             self.free_mode, self.free_level = mode, level
-        self._clear_menu()
         if not self._title_up:
-            self._clear_scene()
+            self.after_title = 'levels'
+            self._load('Loading', self._build_title, self._await_title, 'title')
+            return
+        self._show_levels()
+
+    def _show_levels(self):
+        self._clear_menu()
         self.state = 'levels'
         self._title_letters(False)
         self.menu_root = LevelSelect(self.start_free_play, self._levels_back, self.free_mode, self.free_level)
