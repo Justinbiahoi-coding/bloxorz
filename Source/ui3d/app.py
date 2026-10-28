@@ -3,8 +3,12 @@ from ursina import Button, Entity, Text, application, camera, color, destroy, in
 
 from engine.catalog import TUTORIAL_TIPS, level_label, levels_for_mode
 
+from . import widgets as w
+from .backdrop import CityBackdrop
 from .free_play import FreePlayGame
 from .game import TowerGame
+from .screens.loading import LoadingScreen
+from .screens.main_menu import MainMenu
 
 
 class App3D(Entity):
@@ -15,6 +19,7 @@ class App3D(Entity):
         self.scene = None
         self.menu_root = None
         self.loading_root = None
+        self.backdrop = None
         self.state = 'main'
         self.free_mode = 'normal'
         levels = levels_for_mode(self.free_mode)
@@ -44,9 +49,15 @@ class App3D(Entity):
             destroy(self.loading_root)
             self.loading_root = None
 
+    def _drop_backdrop(self):
+        if self.backdrop is not None:
+            self.backdrop.close()
+            self.backdrop = None
+
     def _show_loading(self, message):
         self._clear_menu()
         self._clear_scene()
+        self._drop_backdrop()
         self._clear_loading()
         self.state = 'loading'
         window.color = color.rgb(8, 12, 26)
@@ -68,23 +79,31 @@ class App3D(Entity):
     def main_menu(self):
         self._clear_scene()
         self._clear_menu()
+        if self.backdrop is None:                # first visit, or back from a game: build the city first
+            self._clear_loading()
+            self.state = 'loading'
+            self.backdrop = CityBackdrop(self.sun)
+            self.loading_root = LoadingScreen('Loading')
+            self.loading_root.run(self.backdrop.build_steps(), self._show_main_menu)
+            return
+        self._show_main_menu()
+
+    def _show_main_menu(self):
+        self._clear_loading()
+        self._clear_menu()
         self.state = 'main'
-        window.color = color.rgb(8, 12, 26)
-        self._new_menu()
-        Text('BLOXORZ', parent=self.menu_root, origin=(0, 0), y=.34, scale=8,
-             color=color.rgb(255, 200, 87))
-        Text('T O W E R', parent=self.menu_root, origin=(0, 0), y=.26, scale=2.6,
-             color=color.rgb(255, 138, 91))
-        self._button('Tower', .11, self.start_tower)
-        self._button('Free Play', .01, self.free_play_menu)
-        self._button('Algorithms', -.09, self._algorithms_notice)
-        self._button('Exit', -.19, application.quit)
-        self.notice = Text('', parent=self.menu_root, origin=(0, 0), y=-.31, scale=1.1,
-                           color=color.rgb(200, 206, 224))
+        self.menu_root = MainMenu({
+            'tower': self.start_tower,
+            'free_play': self.free_play_menu,
+            'algorithms': self._algorithms_notice,
+            'settings': self._settings_notice,
+        })
 
     def _algorithms_notice(self):
-        if getattr(self, 'notice', None) is not None:
-            self.notice.text = 'Algorithms mode is not available in the 3D front-end yet.'
+        w.Toast('Algorithms mode arrives in the next build step')
+
+    def _settings_notice(self):
+        w.Toast('Settings arrive in the next build step')
 
     # ---- free play menu ----
     def free_play_menu(self):
@@ -182,5 +201,4 @@ class App3D(Entity):
                 self.move_level(1)
             elif key in ('enter', 'space'):
                 self.start_free_play()
-        elif self.state == 'main' and key == 'escape':
-            application.quit()
+        # the main menu handles Esc itself (it asks before quitting)

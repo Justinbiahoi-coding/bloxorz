@@ -63,41 +63,45 @@ Thời gian đo trên máy này: chậm nhất là DFS ở màn 43, mất 0,67 s
 
 ## 5. Hệ thống thiết kế
 
-Hướng thẩm mỹ: **bảng hiệu đêm trong thành phố bỏ hoang**. Bảng kính tối trong suốt nằm trên cảnh 3D, chữ vàng ấm như đèn đường, cam cho cảnh báo, bo góc mềm hợp với font Fredoka.
+Hướng thẩm mỹ (duyệt lại 28/10): **bảng điều khiển thang máy** trong thành phố low-poly. Nút chữ nhật vát góc nhẹ, mặt xám than/xám xanh, có chiều sâu (mặt nút nằm trên một cạnh tối, khi nhấn thì lún xuống). Vàng ấm chỉ dành cho hành động chính và mục đang chọn. Nguồn: `ui3d/theme.py`. Ảnh mẫu: `docs/ui3d_widgets_preview.png`, `docs/ui3d_main_menu_preview.png`.
 
-### Màu (lấy từ code hiện có, thêm vài sắc độ)
+### Màu chính
 
 | Token | RGB | Dùng cho |
 |---|---|---|
-| `bg` | 8, 12, 26 | Nền menu |
-| `panel` | 16, 22, 40, alpha 215 | Bảng kính |
-| `panel_line` | 255, 200, 87, alpha 60 | Viền bảng |
-| `btn` | 44, 58, 94 | Nút thường |
-| `btn_hover` | 62, 80, 128 | Nút khi hover/focus |
-| `gold` | 255, 200, 87 | Tiêu đề, nút chính, số liệu |
-| `orange` | 255, 138, 91 | Cảnh báo, thua, hủy |
-| `text` | 250, 244, 232 | Chữ thường |
-| `muted` | 170, 178, 200 | Chữ phụ, phím tắt |
-| `ok` | 120, 220, 150 | Thành công |
+| `FACE` / `FACE_HOVER` / `FACE_PRESS` | 38,43,52 / 52,59,71 / 29,33,40 | Mặt nút phụ theo trạng thái |
+| `EDGE`, `RIM` | 15,17,22 · 74,81,95 | Cạnh dưới (độ sâu), viền |
+| `GOLD` / `GOLD_HOVER` / `GOLD_PRESS` | 240,182,74 / 250,202,108 / 196,146,56 | Nút chính, mục đang chọn |
+| `GOLD_RIM` | 255,214,128 | Viền focus |
+| `PANEL`, `PANEL_RIM` | 21,24,30 a236 · 62,68,80 | Bảng |
+| `DONE_FACE`, `GREEN` | 46,68,52 · 150,212,150 | Level đã hoàn thành |
+| `OFF_FACE`, `OFF_TEXT` | 64,68,76 · 118,122,130 | Disabled, level khóa |
+| `ORANGE` | 255,146,96 | Chữ cảnh báo (nút danger) |
+| `TEXT`, `MUTED`, `INK` | 236,232,224 · 150,156,168 · 34,26,14 | Chữ thường, chữ phụ, chữ trên nền vàng |
 
 ### Chữ
-Fredoka cho tất cả. Ba cỡ: tiêu đề màn, tiêu đề bảng, chữ thường. Thêm cỡ "số liệu" lớn cho bảng thống kê.
+Fredoka là font biến thiên, Panda3D chỉ đọc được bản Light (300) nên chữ mảnh. `tools/make_font_weights.py` tách ra 3 bản tĩnh:
+- `Fredoka-BoldCondensed` (700, hẹp 80): tiêu đề, số lớn.
+- `Fredoka-SemiBold` (600): nút, nhãn, phím tắt.
+- `Fredoka-Medium` (500): chữ thường, font mặc định của bản 3D.
 
-### Thành phần (một file `ui3d/widgets.py` dùng chung)
-- `Panel`: bảng kính bo góc, có viền vàng mờ.
-- `MenuButton`: ba kiểu (chính màu vàng, phụ màu navy, nguy hiểm màu cam). Hover thì phóng nhẹ và sáng lên. Có trạng thái focus khi dùng bàn phím. Có nhãn phím tắt ở góc phải.
-- `Stepper`: `‹ giá trị ›` cho chọn màn và tốc độ.
-- `Tabs`: Normal | Advanced.
-- `Toggle`, `Slider`: cho Settings.
-- `StatCard`: một số liệu lớn kèm nhãn nhỏ.
-- `KeyHint`: dải phím tắt dưới đáy màn hình.
-- `Toast`: thông báo ngắn tự ẩn (ví dụ "Not implemented").
-- `Modal`: lớp phủ tối + bảng ở giữa (Pause, Result, Solve).
+Mỗi font có một độ phân giải glyph cố định (`theme.RESOLUTION`) để tiêu đề lớn không bị mờ.
 
-### Tương tác
-- Mọi màn dùng được cả **chuột** lẫn **bàn phím**: ↑/↓ chọn nút, Enter bấm, Esc quay lại.
-- Hiệu ứng ngắn (khoảng 0,15 s) khi mở bảng và khi hover. Không có hiệu ứng nào chặn thao tác.
-- Chữ không đè lên nhau. Lỗi hiện tại: tên tutorial đè lên dòng mẹo trong Free Play.
+Fredoka **không có** `← ↑ → ↓ ▶ ■ ✓ ⏸`; các icon này vẽ bằng mesh trong `ui3d/icons.py`.
+
+### Thành phần (`ui3d/widgets.py`)
+- `UIButton`: các kiểu `primary` / `secondary` / `quiet` (Exit) / `danger`; 5 trạng thái normal, hover, focus (viền vàng + mũi tên chỉ), pressed (lún xuống), disabled. Chữ tự thu nhỏ để không bị cắt.
+- `back_button`, `icon_button` (pause, restart), `Stepper`, `Tabs`.
+- `LevelTile`: completed (xanh + dấu check), selected (viền và số vàng), available, locked (mờ + ổ khóa, không chọn được).
+- `Slider` (kéo chuột, bấm, hoặc ←/→), `Checkbox`, `ProgressBar`.
+- `Panel`, `Modal`, `ConfirmDialog` (Esc hủy, Enter xác nhận, kiểu danger thì focus mặc định ở Cancel).
+- `HUDBar` (dải gọn ở mép trên trái), `KeyHint`, `StatCard`, `Toast` (nhiều toast xếp chồng, không đè nhau).
+- `FocusGroup`: điều khiển bàn phím cho mọi thành phần trên, kể cả lưới ô level.
+
+### Tương tác và kiểm tra
+- Chuột và bàn phím dùng được ở mọi màn: ↑/↓ (hoặc ←/→) chọn, Enter bấm, Esc quay lại.
+- HUD trong màn chơi nằm gọn ở mép, không che bàn cờ. Số liệu thuật toán chỉ hiện trong chế độ Algorithms.
+- Mỗi màn được chụp kiểm tra ở 1280×720 và 1920×1080.
 
 ## 6. Các màn hình
 
