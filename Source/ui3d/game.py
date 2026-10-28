@@ -74,6 +74,7 @@ class TowerGame(Entity):
         self.intro = Intro(self.floor, self.tower.count, *self._camera_for(self.floor))
         self.intro.light(self.sun)
         self.phase = 'intro'
+        self.menu_hold = False      # set by the app: keys go to its menu once the title is up
         self._show_hud(False)
         self._show_floor(False)                              # the lobby sits inside the intro's tower
 
@@ -146,6 +147,10 @@ class TowerGame(Entity):
 
     # ---- input ----
     def input(self, key):
+        if self.phase == 'intro' and self.menu_hold:             # the main menu sits on the intro's last shot
+            if not self.intro.at_title and not key.endswith(' up'):
+                self.intro.skip_or_enter()
+            return
         if key == 'escape':
             if self.on_menu is not None:
                 self.on_menu()

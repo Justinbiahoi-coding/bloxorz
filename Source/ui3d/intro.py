@@ -18,6 +18,7 @@ from ursina import Entity, Text, Vec3, camera, color, destroy, window
 from .floor import box, glow, prop
 from .street import Street
 from .world import ASSETS, floor_y, point_camera, set_exposure
+from . import theme
 from .cat import Cat, available as cat_available
 from .zombie import Horde, Zombie, available as zombies_available
 
@@ -55,8 +56,14 @@ class Intro:
         self.overlay = Entity(parent=camera.ui, model='quad', scale=(4, 2), color=color.rgba(0, 0, 0, 0), z=-1)
         self.vignette = Entity(parent=camera.ui, model='quad', texture='textures/vignette',
                                scale=(window.aspect_ratio, 1), color=color.rgba(255, 255, 255, 120), z=-0.5)
-        self.title = Text('BLOXORZ', origin=(0, 0), y=0.2, scale=6, color=color.rgba(240, 232, 220, 0))
-        self.sub = Text('T O W E R', origin=(0, 0), y=0.08, scale=2.4, color=color.rgba(226, 92, 76, 0))
+        self.title = Text('BLOXORZ', origin=(0, 0), y=0.22, scale=theme.TITLE, font=theme.FONT_TITLE,
+                          color=color.rgba(240, 232, 220, 0))
+        self.title.resolution = theme.RESOLUTION[theme.FONT_TITLE]
+        self.title.text = 'BLOXORZ'
+        self.sub = Text('T O W E R', origin=(0, 0), y=0.105, scale=2.4, font=theme.FONT_TITLE,
+                        color=color.rgba(240, 182, 74, 0))
+        self.sub.resolution = theme.RESOLUTION[theme.FONT_TITLE]
+        self.sub.text = 'T O W E R'
         self.line = Text('', origin=(0, 0), y=-0.33, scale=1.5, color=color.rgba(226, 222, 214, 0))
         self.button = Text('  Enter Building  ', origin=(0, 0), position=(0.55, -0.36), scale=1.8,
                            color=color.rgba(255, 255, 255, 0))
@@ -66,6 +73,7 @@ class Intro:
         self.skip = Text('press any key to skip', origin=(0, 0), y=-0.44, scale=1,
                          color=color.rgba(220, 220, 230, 160))
         self.t, self.done, self._lit_for = 0.0, False, None
+        self.show_button = True        # off while the main menu stands in for "Enter Building"
         self.apply()
 
     def light(self, sun_np):
@@ -273,6 +281,11 @@ class Intro:
         return (Vec3(cx + _lerp(5.0, 3.2, k), b + 2.0, self.door.z - _lerp(15, 12, k)),
                 Vec3(cx, b + 4.2, self.cz))
 
+    @property
+    def at_title(self):
+        """The last shot: the title over the tower's doors."""
+        return self.t >= sum(SHOTS)
+
     def skip_or_enter(self):
         if self.t < sum(SHOTS):
             self.t = sum(SHOTS)
@@ -280,6 +293,7 @@ class Intro:
             self.done = True
 
     def step(self, dt):
+        dt = min(dt, 1 / 20)     # a loading hitch (building the set, first zombie) must not skip the film
         self.t += dt
         self.apply(dt)
 
@@ -307,15 +321,19 @@ class Intro:
             fade = max(fade, 1 - min(1.0, abs(t - SHOTS[0] / 2) / (FADE / 2)))
         self.overlay.color = color.rgba(0, 0, 0, int(255 * fade))
         self.noise.texture_offset = (random.random(), random.random())   # film grain flicker
+        if self.vignette.scale_x != window.aspect_ratio:     # Ursina learns the real window shape a frame late
+            self.vignette.scale_x = self.noise.scale_x = window.aspect_ratio
+            self.noise.texture_scale = (window.aspect_ratio * 3, 3)
         show = min(1.0, t / 0.6) * min(1.0, (SHOTS[i] - t) / 0.6) * (1 - fade)
         self.line.text = LINES[i]
         self.line.color = color.rgba(226, 222, 214, int(210 * max(0.0, show)))
         a = 0.0 if i < 4 else min(1.0, t / 1.2)
         self.title.color = color.rgba(240, 232, 220, int(255 * a))
-        self.sub.color = color.rgba(226, 92, 76, int(255 * a))
+        self.sub.color = color.rgba(240, 182, 74, int(255 * a))
         ready = self.t >= sum(SHOTS)
-        self.button.color = color.rgba(255, 255, 255, int(255 * a) if i == 4 else 0)
-        self.frame.color = color.rgba(20, 22, 34, int(200 * a) if i == 4 else 0)
+        shown = i == 4 and self.show_button
+        self.button.color = color.rgba(255, 255, 255, int(255 * a) if shown else 0)
+        self.frame.color = color.rgba(20, 22, 34, int(200 * a) if shown else 0)
         self.skip.enabled = not ready and i < 4
 
     def destroy(self):

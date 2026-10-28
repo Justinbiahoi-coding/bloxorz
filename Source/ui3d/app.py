@@ -4,7 +4,6 @@ from ursina import Button, Entity, Text, application, camera, color, destroy, in
 from engine.catalog import TUTORIAL_TIPS, level_label, levels_for_mode
 
 from . import widgets as w
-from .backdrop import CityBackdrop
 from .free_play import FreePlayGame
 from .game import TowerGame
 from .screens.loading import LoadingScreen
@@ -19,7 +18,7 @@ class App3D(Entity):
         self.scene = None
         self.menu_root = None
         self.loading_root = None
-        self.backdrop = None
+        self.first_title = True       # the opening plays in full only the first time
         self.state = 'main'
         self.free_mode = 'normal'
         levels = levels_for_mode(self.free_mode)
@@ -49,15 +48,9 @@ class App3D(Entity):
             destroy(self.loading_root)
             self.loading_root = None
 
-    def _drop_backdrop(self):
-        if self.backdrop is not None:
-            self.backdrop.close()
-            self.backdrop = None
-
     def _show_loading(self, message):
         self._clear_menu()
         self._clear_scene()
-        self._drop_backdrop()
         self._clear_loading()
         self.state = 'loading'
         window.color = color.rgb(8, 12, 26)
@@ -76,28 +69,49 @@ class App3D(Entity):
         invoke(lambda: self.start_free_play(level_number), delay=.01)
 
     # ---- main menu ----
+    # The menu is the opening's last shot: Justin's intro ends on the title over the tower doors, and the
+    # menu panel takes the place of "Enter Building". Tower then walks in exactly as the intro would.
     def main_menu(self):
         self._clear_scene()
         self._clear_menu()
-        if self.backdrop is None:                # first visit, or back from a game: build the city first
-            self._clear_loading()
-            self.state = 'loading'
-            self.backdrop = CityBackdrop(self.sun)
-            self.loading_root = LoadingScreen('Loading')
-            self.loading_root.run(self.backdrop.build_steps(), self._show_main_menu)
-            return
-        self._show_main_menu()
+        self._clear_loading()
+        self.state = 'loading'
+        self.loading_root = LoadingScreen('Loading')
+        self.loading_root.run(self._build_title(), self._await_title)
+
+    def _build_title(self):
+        yield .15, 'Clearing the street'
+        self.scene = TowerGame(self.sun, on_menu=self._game_menu)
+        self.scene.menu_hold = True
+        self.scene.intro.show_button = False
+        if not self.first_title:                 # back from a game: straight to the title shot
+            self.scene.intro.skip_or_enter()
+        self.first_title = False
+        yield 1.0, 'Ready'
+
+    def _await_title(self):
+        self._clear_loading()
+        self.state = 'intro'                     # update() opens the menu once the title is up
+
+    def update(self):
+        if self.state == 'intro' and self.scene is not None and self.scene.intro.at_title:
+            self._show_main_menu()
 
     def _show_main_menu(self):
-        self._clear_loading()
         self._clear_menu()
         self.state = 'main'
         self.menu_root = MainMenu({
-            'tower': self.start_tower,
+            'tower': self._enter_tower,
             'free_play': self.free_play_menu,
             'algorithms': self._algorithms_notice,
             'settings': self._settings_notice,
         })
+
+    def _enter_tower(self):
+        self._clear_menu()
+        self.state = 'game'
+        self.scene.menu_hold = False
+        self.scene.intro.skip_or_enter()         # at the title this walks into the lobby
 
     def _algorithms_notice(self):
         w.Toast('Algorithms mode arrives in the next build step')
@@ -188,7 +202,7 @@ class App3D(Entity):
 
     # ---- input for menus ----
     def input(self, key):
-        if self.state in ('main', 'free', 'loading'):
+        if self.state in ('main', 'free', 'loading', 'intro'):
             if key == 'f':
                 window.fullscreen = not window.fullscreen
                 return

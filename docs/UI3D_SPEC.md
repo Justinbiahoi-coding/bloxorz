@@ -107,20 +107,20 @@ Fredoka **không có** `← ↑ → ↓ ▶ ■ ✓ ⏸`; các icon này vẽ b�
 
 Chữ trong game giữ tiếng Anh như bản hiện có.
 
-### 6.1 Main Menu
-```
-            B L O X O R Z
-               T O W E R
-        ┌───────────────────────┐
-        │  ▶ Tower         (1)  │   ← nút chính (vàng)
-        │    Free Play     (2)  │
-        │    Algorithms    (3)  │
-        │    Settings      (4)  │
-        │    Exit        (Esc)  │
-        └───────────────────────┘
-   ↑↓ select   Enter confirm   F fullscreen
-```
-Nền: cảnh 3D thật (một tầng của tòa nhà, xoay chậm, làm tối) thay cho nền xanh phẳng.
+### 6.1 Main Menu (= cảnh cuối intro của Justin)
+Luồng: mở game → Loading → intro của Justin (bấm phím bất kỳ để bỏ qua) → dừng ở cảnh cuối: tiêu đề BLOXORZ TOWER trên cửa tòa tháp. Bảng menu đứng ở góc phải dưới, đúng chỗ nút "Enter Building" cũ.
+
+- **Tower:** đi tiếp đúng đoạn của Justin, cái thùng lăn vào sảnh.
+- **Free Play / Algorithms / Settings:** mở màn tương ứng.
+- **Exit / Esc:** hộp thoại xác nhận.
+- **Về menu sau khi chơi:** dựng lại cảnh và vào thẳng cảnh cuối, không chiếu lại cả đoạn intro.
+
+Code: `ui3d/app.py` (`main_menu`, `_enter_tower`), `ui3d/screens/main_menu.py`. Phần sửa vào code của Justin chỉ gồm:
+- `TowerGame.menu_hold`: giữ intro ở cảnh tiêu đề trong lúc menu mở.
+- `Intro.show_button`, `Intro.at_title`.
+- Tiêu đề intro đổi sang font BoldCondensed, chữ "TOWER" màu vàng.
+- `Intro.step` giới hạn dt để intro không nhảy cóc khi game khựng lúc tải.
+- Lớp vignette và hạt nhiễu tự giãn theo tỉ lệ cửa sổ thật.
 
 ### 6.2 Level Select (Free Play và Algorithms dùng chung)
 ```

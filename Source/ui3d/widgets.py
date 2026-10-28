@@ -824,6 +824,7 @@ class KeyHint(Entity):
         total = cursor - .04
         for g in parts:
             g.x -= total / 2
+        plate(self, total + .04, h + .022, theme.PANEL, theme.CHAMFER, shade=False, z=.004)   # readable on any scene
 
 
 class Toast(Entity):
