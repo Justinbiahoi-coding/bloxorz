@@ -19,8 +19,8 @@ def font(size):
 
 
 def scale(surf):
-    """UI scale: 1 up to a 720px-high screen, growing to 1.8 on big displays."""
-    return max(1.0, min(1.8, surf.get_height() / 720))
+    """UI scale: 1 up to a 720px-high screen, growing to 2.5 on big displays."""
+    return max(1.0, min(2.5, surf.get_height() / 720))
 
 
 def text(surf, string, size, color, **anchor):

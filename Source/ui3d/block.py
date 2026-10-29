@@ -28,6 +28,8 @@ BIN = MODEL == 'bin/bin_block'
 USE_CHARACTER = True
 HAS_MODEL = USE_CHARACTER and MODEL is not None
 
+SPEED = 1.0     # Settings > move speed: divides every move's duration
+
 # per kind of move: duration (s), arc height (cells), landing squash
 MOVES = {'dive': (0.36, 0.55, 0.16),
          'spring': (0.38, 0.70, 0.12),
@@ -107,7 +109,7 @@ class Block:
 
     @property
     def duration(self):
-        return MOVES[self.roll[0]][0] if self.roll else 0.2
+        return (MOVES[self.roll[0]][0] if self.roll else 0.2) / SPEED
 
     def start_fall(self, session, before, action, d, base):
         """A move the board does not allow: roll the block over the edge anyway, onto the bare floor."""
@@ -234,7 +236,7 @@ class CharBlock:
 
     @property
     def duration(self):
-        return CHAR_MOVES[self.roll['kind']] if self.roll else 0.2
+        return (CHAR_MOVES[self.roll['kind']] if self.roll else 0.2) / SPEED
 
     def start_roll(self, session, before, after, action, d, base):
         if action == 'SWITCH' or before.split != after.split:
@@ -390,7 +392,7 @@ class ActorBlock:
 
     @property
     def duration(self):
-        return ACTOR_MOVES[self.roll['kind']] if self.roll else 0.2
+        return (ACTOR_MOVES[self.roll['kind']] if self.roll else 0.2) / SPEED
 
     def start_roll(self, session, before, after, action, d, base):
         if action == 'SWITCH' or before.split != after.split:

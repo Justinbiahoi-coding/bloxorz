@@ -14,10 +14,9 @@ from ursina import Cone, Entity, Text, Vec3, camera, color, destroy
 
 from .cat import Cat
 from .floor import BOX, box, glow, tex
-from .world import ASSETS, aim_sun, move_lantern, point_camera
+from .world import ASSETS, FONT, aim_sun, move_lantern, point_camera
 
 ORG = Vec3(0, -400, 0)                                   # where the car stands, far from everything else
-FONT = str(ASSETS / 'fonts' / 'Fredoka.ttf')
 BIN_K = 0.9
 
 

@@ -2,6 +2,7 @@
 
 The UI should not need to know which search function backs each algorithm.
 """
+import tracemalloc
 from dataclasses import dataclass
 
 from .problem import Bloxorz
@@ -27,10 +28,21 @@ class SolveResult:
     goal_node: object
     explored: list
     elapsed_ms: float
+    peak_memory_kb: float = None   # None when the run was not measured
 
     @property
     def solved(self):
         return self.goal_node is not None
+
+    @property
+    def expanded(self):
+        return len(self.explored)
+
+    @property
+    def solution_length(self):
+        """Number of moves in the solution, or None."""
+        path = self.solution_path()
+        return None if path is None else len(path) - 1
 
     @property
     def solution_cost(self):
@@ -73,31 +85,47 @@ _ALGORITHMS = {
 }
 
 
-def solve_problem(problem, algorithm, initial=None):
+def _peak_memory_kb(runner, problem):
+    """Peak memory the search allocates, in KB, measured with tracemalloc."""
+    owner = not tracemalloc.is_tracing()
+    if owner:
+        tracemalloc.start()
+    tracemalloc.reset_peak()
+    before = tracemalloc.get_traced_memory()[0]
+    try:
+        runner(problem)
+        return (tracemalloc.get_traced_memory()[1] - before) / 1024
+    finally:
+        if owner:
+            tracemalloc.stop()
+
+
+def solve_problem(problem, algorithm, initial=None, measure_memory=False):
     """Run a search algorithm against an existing problem.
 
     ``initial`` optionally overrides the start state, which is useful for hints.
     The original problem state is restored afterwards.
+    ``measure_memory`` runs the search a second time under tracemalloc to fill in
+    ``peak_memory_kb``; tracing slows the search, so the timing comes from the first run.
     """
     try:
         runner = _ALGORITHMS[algorithm]
     except KeyError:
         raise ValueError('Unknown algorithm: {}'.format(algorithm))
 
+    original_initial = problem.initial
     if initial is not None:
-        original_initial = problem.initial
         problem.initial = initial
-        try:
-            goal_node, explored, elapsed_ms = runner(problem)
-        finally:
-            problem.initial = original_initial
-    else:
+    try:
         goal_node, explored, elapsed_ms = runner(problem)
+        peak = _peak_memory_kb(runner, problem) if measure_memory else None
+    finally:
+        problem.initial = original_initial
 
     level_number = getattr(problem.level, 'level', None)
-    return SolveResult(algorithm, level_number, goal_node, explored, elapsed_ms)
+    return SolveResult(algorithm, level_number, goal_node, explored, elapsed_ms, peak)
 
 
-def solve(level_number, algorithm):
-    """Solve a level using the requested algorithm."""
-    return solve_problem(Bloxorz(level_number), algorithm)
+def solve(level_number, algorithm, measure_memory=True):
+    """Solve a level using the requested algorithm, with all four metrics."""
+    return solve_problem(Bloxorz(level_number), algorithm, measure_memory=measure_memory)

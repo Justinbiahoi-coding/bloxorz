@@ -6,7 +6,7 @@ from engine import (ALGORITHM_NAMES, GameSession, Level, solve,
 
 class LevelTests(unittest.TestCase):
     def test_all_levels_load(self):
-        for level_number in range(1, 54):
+        for level_number in range(1, 58):
             level = Level(level_number)
             self.assertGreater(level.size, 0)
             self.assertEqual(len(level.map), level.size)
@@ -46,6 +46,20 @@ class SessionTests(unittest.TestCase):
         self.assertTrue(session.move('RIGHT'))
         self.assertEqual(session.moves, 1)
         self.assertNotEqual(session.state.position, start.position)
+
+    def test_invalid_attempt_falls_without_moving(self):
+        session = GameSession(2)
+        start = session.state
+        action = next(a for a in ('UP', 'DOWN', 'LEFT', 'RIGHT')
+                      if a not in session.actions())
+        status, before, after = session.attempt_move(action)
+        self.assertEqual(status, 'fell')
+        self.assertEqual(before, start)
+        self.assertEqual(after, start)
+        self.assertEqual(session.state, start)
+        self.assertEqual(session.moves, 0)
+        self.assertFalse(session.move(action))
+        self.assertEqual(session.state, start)
 
     def test_hint_is_next_state_and_cleared_on_move(self):
         session = GameSession(1)

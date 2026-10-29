@@ -1,0 +1,65 @@
+"""Main menu: a control panel over the opening's last shot (the title above the tower doors)."""
+from ursina import Entity, application, camera, color, destroy, window
+
+from .. import theme
+from .. import widgets as w
+
+
+class MainMenu(Entity):
+    """The control panel over the opening's title shot.
+
+    The title is the intro's own (ui3d/intro.py); the panel stands where "Enter Building" was, on the
+    lower right, clear of the title and the lit doors in the middle.
+    actions: dict with 'tower', 'free_play', 'algorithms', 'settings' callbacks; Exit asks first.
+    """
+
+    def __init__(self, actions):
+        super().__init__(parent=camera.ui)
+        self.actions = actions
+        a = window.aspect_ratio / 2
+        # shade the right of the picture so the panel reads over the facade
+        shade = Entity(parent=self, model='quad', texture='horizontal_gradient', scale=(a * .9, 1),
+                       x=a - a * .45, color=color.rgba(8, 9, 13, 200), z=.05)
+        shade.rotation_z = 180
+
+        bw, bh = .34, theme.BUTTON_H
+        rows = [('Tower', 'tower', 'primary'), ('Free Play', 'free_play', 'secondary'),
+                ('Algorithms', 'algorithms', 'secondary'), ('Settings', 'settings', 'secondary'),
+                ('Exit', None, 'secondary')]
+        gap = bh + .022
+        ph = gap * len(rows) + .03
+        pw = bw + .07
+        panel = w.Panel(pw, ph, parent=self, x=a - .06 - pw / 2, y=-.4 + ph / 2)
+        self.group = w.FocusGroup()
+        top = ph / 2 - .03 - bh / 2
+        for i, (text, key, kind) in enumerate(rows):
+            action = self._exit if key is None else (lambda k=key: self._go(k))
+            w.UIButton(text, action, parent=panel, y=top - i * gap, w=bw, kind=kind, group=self.group)
+        self.group.focus_first()
+        panel.scale = .96
+        panel.animate_scale(1, duration=theme.MEDIUM)
+
+        w.label(self, 'CSC14003  ·  INTRODUCTION TO AI  ·  PROJECT 1', theme.TINY, theme.MUTED, theme.FONT_LABEL,
+                origin=(-.5, 0), x=-a + .04, y=.465)
+        w.KeyHint([('updown', 'Select'), ('Enter', 'Confirm'), ('F', 'Fullscreen'), ('Esc', 'Exit')],
+                  parent=self, x=-.12)
+
+    def _go(self, key):
+        fn = self.actions.get(key)
+        if fn:
+            fn()
+
+    def _exit(self):
+        w.ConfirmDialog('Quit Bloxorz Tower?', 'You can pick up any floor again from Free Play.',
+                        application.quit, confirm='Quit', cancel='Stay')
+
+    def input(self, key):
+        if w.Modal.busy():
+            return
+        if key == 'escape':
+            self._exit()
+        else:
+            self.group.input(key)
+
+    def close(self):
+        destroy(self)
