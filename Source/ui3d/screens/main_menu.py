@@ -25,7 +25,7 @@ class MainMenu(Entity):
         bw, bh = .34, theme.BUTTON_H
         rows = [('Tower', 'tower', 'primary'), ('Free Play', 'free_play', 'secondary'),
                 ('Algorithms', 'algorithms', 'secondary'), ('Settings', 'settings', 'secondary'),
-                ('Exit', None, 'quiet')]
+                ('Exit', None, 'secondary')]
         gap = bh + .022
         ph = gap * len(rows) + .03
         pw = bw + .07

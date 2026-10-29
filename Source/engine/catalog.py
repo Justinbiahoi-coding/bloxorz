@@ -36,12 +36,12 @@ def level_label(level_number):
     return TUTORIAL_NAMES.get(level_number, 'Level {}'.format(level_number))
 
 
+LAST_NORMAL_LEVEL = 23       # Normal: the four tutorials, then levels 1-23. Advanced: level 24 and up.
 LEVEL_NUMBERS = _discover_levels()
-NORMAL_LEVELS = [number for number in LEVEL_NUMBERS if not has_advanced_tiles(number)]
 _TUTORIALS = [number for number in TUTORIAL_LEVELS if number in LEVEL_NUMBERS]
-ADVANCED_LEVELS = _TUTORIALS + [
-    number for number in LEVEL_NUMBERS
-    if has_advanced_tiles(number) and number not in _TUTORIALS]
+_REGULAR = [number for number in LEVEL_NUMBERS if number not in _TUTORIALS]
+NORMAL_LEVELS = _TUTORIALS + [number for number in _REGULAR if number <= LAST_NORMAL_LEVEL]
+ADVANCED_LEVELS = [number for number in _REGULAR if number > LAST_NORMAL_LEVEL]
 
 
 def levels_for_mode(mode):

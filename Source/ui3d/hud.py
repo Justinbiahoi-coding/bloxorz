@@ -40,9 +40,10 @@ LEGEND = [
 
 
 class GameHUD(Entity):
-    """actions: callbacks 'new_game', 'restart', 'hint', 'solve' (gets an algorithm name), 'pause'."""
+    """actions: callbacks 'new_game', 'restart', 'hint', 'solve' (gets an algorithm name), 'pause'.
+    new_label names the 'new_game' button (Free Play calls it Levels: it goes back to level select)."""
 
-    def __init__(self, actions, keys=None):
+    def __init__(self, actions, keys=None, new_label='New Game'):
         super().__init__(parent=camera.ui, z=-.05)
         self.actions = actions
         a = window.aspect_ratio / 2
@@ -58,7 +59,7 @@ class GameHUD(Entity):
                               parent=self.toolbar, x=x - bh / 2, y=y, size=bh, key='Esc')
         x -= bh + .012
         specs = [('Solve', 'solve_menu', .13, None), ('Hint', 'hint', .14, 'H'), ('Restart', 'restart', .19, 'R'),
-                 ('New Game', 'new_game', .18, None)]
+                 (new_label, 'new_game', .18, None)]
         self.buttons = {'pause': pause}
         for text, key, bw, shortcut in specs:
             b = w.UIButton(text, self._toggle_solve if key == 'solve_menu' else self._act(key),
@@ -70,8 +71,8 @@ class GameHUD(Entity):
 
         self.legend = Entity(parent=self)
         self.status = None
-        self.keys = w.KeyHint(keys or [('arrows', 'Roll'), ('Space', 'Switch cube'), ('R', 'Restart'),
-                                       ('H', 'Hint'), ('Esc', 'Pause')], parent=self)
+        self.custom_keys = keys
+        self.keys = w.KeyHint(keys or self._play_keys(False), parent=self)
         settings.on_change(self._setting)
 
     # ---- content ----
@@ -99,6 +100,15 @@ class GameHUD(Entity):
     def _place_tip(self):
         self.tip.x = self.bar.x
         self.tip.y = self.bar.y - w.HUDBar.H / 2 - .016
+
+    @staticmethod
+    def _play_keys(split):
+        """Space only matters on levels with a split switch, where it swaps between the two cubes."""
+        return [('arrows', 'Roll')] + ([('Space', 'Switch cube')] if split else []) +                [('R', 'Restart'), ('H', 'Hint'), ('Esc', 'Pause')]
+
+    def set_split(self, on):
+        if not self.custom_keys:
+            self.keys.set(self._play_keys(on))
 
     def set_legend(self, kinds):
         """kinds: the GameSession.tile_at names present on this level."""

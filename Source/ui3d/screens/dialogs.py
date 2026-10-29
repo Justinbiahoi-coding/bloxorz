@@ -50,13 +50,13 @@ class _MenuDialog(w.Modal):
 class PauseMenu(_MenuDialog):
     """resume / restart / new_game / settings / main_menu callbacks."""
 
-    def __init__(self, resume, restart, new_game, settings, main_menu, title='Paused'):
+    def __init__(self, resume, restart, new_game, settings, main_menu, title='Paused', new_label='New Game'):
         super().__init__(title, [
             ('Resume', resume, 'primary', 'Esc'),
             ('Restart', restart, 'secondary', 'R'),
-            ('New Game', new_game, 'secondary', None),
+            (new_label, new_game, 'secondary', None),
             ('Settings', settings, 'secondary', None),
-            ('Main Menu', main_menu, 'quiet', None),
+            ('Main Menu', main_menu, 'secondary', None),
         ], escape=resume, keys={'r': restart})
 
 
@@ -76,7 +76,7 @@ class ResultDialog(_MenuDialog):
         rows.append(('Retry', on_retry, 'secondary' if rows else 'primary', 'R'))
         if on_levels:
             rows.append(('Level Select', on_levels, 'secondary', None))
-        rows.append(('Main Menu', on_menu, 'quiet', 'Esc'))
+        rows.append(('Main Menu', on_menu, 'secondary', 'Esc'))
         if won:
             sub = '{} moves'.format(moves) + ('   ·   best possible {}'.format(best) if best is not None else '')
         else:

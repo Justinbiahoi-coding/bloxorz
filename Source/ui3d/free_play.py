@@ -15,6 +15,7 @@ from . import settings
 from . import widgets as w
 from .block import Block
 from .controls import PlayControls
+from .death import DEATH_PHASES, DeathScene
 from .floor import Floor
 from .prowl import Prowlers
 from .hud import GameHUD
@@ -25,7 +26,7 @@ KEYS = {'left arrow': 'LEFT', 'right arrow': 'RIGHT', 'up arrow': 'DOWN', 'down 
 SKY = (14, 17, 34)
 
 
-class FreePlayGame(PlayControls, Entity):
+class FreePlayGame(PlayControls, DeathScene, Entity):
     """app: on_menu(), on_next(level), on_levels(), on_settings(on_close)."""
 
     def __init__(self, sun, level_number, mode, on_menu, on_next, on_levels=None, on_settings=None):
@@ -41,15 +42,17 @@ class FreePlayGame(PlayControls, Entity):
         self.block = Block()
         self.phase, self.t = 'play', 0.0
         self.queued = None
-        self.fall_pieces = []
         self.dialog = None
         camera.fov = 42
         self._place_block()
         self._aim()
         self.hud = GameHUD({'new_game': self.new_game, 'restart': self.restart, 'hint': self.hint,
-                            'solve': self.solve, 'pause': self.pause})
+                            'solve': self.solve, 'pause': self.pause}, new_label='Levels')
+        self._init_death('R  try again      ·      Esc  level select')
         self.hud.set_tip(TUTORIAL_TIPS.get(level_number))
-        self.hud.set_legend({self.session.tile_at(x, y) for x, y in self.session.level.kinds})
+        kinds = {self.session.tile_at(x, y) for x, y in self.session.level.kinds}
+        self.hud.set_legend(kinds)
+        self.hud.set_split('split' in kinds)
         self._hud()
 
     # ---- view ----
@@ -92,6 +95,12 @@ class FreePlayGame(PlayControls, Entity):
             settings.set('fullscreen', not window.fullscreen)
             window.fullscreen = settings.get('fullscreen')
             return
+        if self.phase == 'over':                      # the game-over picture: same keys as the tower, plus levels
+            if key in ('r', 'enter', 'space'):
+                self._retry()
+            elif key == 'escape':
+                (self.on_levels or self.on_menu)()
+            return
         if key == 'escape':
             self.pause()
             return
@@ -108,12 +117,15 @@ class FreePlayGame(PlayControls, Entity):
             return
         if key not in KEYS and key != 'space':
             return
+        if key == 'space' and not self.session.is_split:     # nothing to switch while the block is whole
+            return
         self.clear_hint()
         action = KEYS.get(key, 'SWITCH')
         before = self.session.state
         status, _, after = self.session.attempt_move(action)
         if status == 'fell':
-            self.start_fall()
+            self.clear_hint()
+            self._fall(action)                       # tips over the edge, the dead close in (ui3d/death.py)
             return
         if before.bridges != self.session.state.bridges:
             self.floor.refresh()
@@ -133,9 +145,18 @@ class FreePlayGame(PlayControls, Entity):
         self.session.reset()
         self.floor.refresh()
         self._place_block()
+        self.prowl.reset()
         self._aim()
         self.phase, self.t = 'play', 0.0
         self._hud()
+
+    def _retry(self):
+        self._clear_death()
+        self.hud.show(True)
+        self.restart()
+
+    def _show_hud(self, on):
+        self.hud.show(on)
 
     def new_game(self):
         """Back to level select; asks first if this level is under way."""
@@ -153,7 +174,7 @@ class FreePlayGame(PlayControls, Entity):
         self.stop_auto()
         PauseMenu(resume=None, restart=self.restart, new_game=self.new_game,
                   settings=(lambda: self.on_settings(self.pause)) if self.on_settings else None,
-                  main_menu=self._leave)
+                  main_menu=self._leave, new_label='Level Select')
 
     def _leave(self):
         if self.session.moves and self.phase in ('play', 'roll'):
@@ -163,11 +184,6 @@ class FreePlayGame(PlayControls, Entity):
             self.on_menu()
 
     # ---- play ----
-    def start_fall(self):
-        self.clear_hint()
-        self.fall_pieces = list(self.block.pieces)
-        self.phase, self.t = 'fall', 0.0
-
     def _after_move(self):
         if self.session.won:
             self.phase, self.t = 'win', 0.0
@@ -214,13 +230,8 @@ class FreePlayGame(PlayControls, Entity):
                 if self.queued and self.phase == 'play':
                     key, self.queued = self.queued, None
                     self.input(key)
-        elif self.phase == 'fall':
-            self.t += dt
-            for piece in self.fall_pieces:
-                piece.y -= dt * 2.8
-                piece.rotation_x += dt * 220
-            if self.t >= .7:
-                self._show_result('lose')
+        elif self.phase in DEATH_PHASES:
+            self._death_update(dt)
         elif self.phase == 'win':                     # in the elevator: the doors close, as in the tower
             self.t += dt
             if self.floor.lift:
@@ -236,6 +247,7 @@ class FreePlayGame(PlayControls, Entity):
             self.dialog.close()
         for m in list(w.Modal.stack):
             m.close()
+        self._close_death()
         self.block.clear()
         self.prowl.destroy()
         self.floor.destroy()
