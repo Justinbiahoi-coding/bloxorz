@@ -49,8 +49,9 @@ The opening film plays once (any key skips it) and stops on the title over the t
 the main menu sits:
 
 - **Tower** — the climb: ten floors from the lobby to the roof, one elevator ride between them.
-- **Free Play** — any single stage. *Normal* has no advanced tiles; *Advanced* starts with four
-  tutorials (fragile tiles, bridges, heavy switches, split cubes). Cleared stages are marked.
+- **Free Play** — any single stage. *Normal* starts with four tutorials (fragile tiles, bridges,
+  heavy switches, split cubes), then levels 1–23; *Advanced* holds level 24 and up. Cleared stages
+  are marked.
 - **Algorithms** — pick a stage and a solver (BFS, DFS, UCS, A*, IDS), run it from the stage start
   and read the time, peak memory, expanded nodes and solution length; *Run all* compares every
   solver on the same stage. Replay the solution, or watch the expanded nodes light up the board.

@@ -245,8 +245,8 @@ Advanced Free Play begins with four tutorial stages:
 | 57 | Split switches, cube control, and merging |
 
 Each tutorial shows an in-game text guide explaining the mechanic, and the same
-tip appears in the Free Play menu. After these tutorials, Advanced mode
-continues with the advanced stages from the main level set.
+tip appears in the Free Play menu. The tutorials open Normal mode, before levels 1–23;
+Advanced mode holds level 24 and up.
 
 ## 7. Implementation checklist
 
