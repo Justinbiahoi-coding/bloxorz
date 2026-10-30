@@ -2,8 +2,9 @@
 
 This document describes the data structures and functions that search
 algorithms must use. The search implementations in
-`Source/engine/algo_implementation/algorithms.py` are placeholders; the problem, level, state,
-node, session, solver facade, and UI remain implemented.
+`Source/engine/algo_implementation/algorithms.py` include implemented BFS, DFS,
+UCS and A*. Independent DLS/bidirectional stubs remain outside the supported UI
+choices; IDS has been removed. The problem, level, state, node, session, solver facade and UI are implemented.
 
 See [`SOLVER_IMPLEMENTATION.md`](SOLVER_IMPLEMENTATION.md) for algorithm-specific
 requirements, pseudocode, metrics, and the testing checklist.
@@ -213,20 +214,28 @@ goal is not a win, and a split cube resting on the goal is not a win.
 
 ### `problem.path_cost(cost_so_far, state1, action, state2) -> number`
 
-Inherited from `Problem`. The current implementation adds `1` for every action:
+Bloxorz overrides the generic `Problem` default (`+1`) with a fragile penalty:
 
 ```python
-return cost_so_far + 1
+return cost_so_far + 1 + (2 if moved_part_lands_on_fragile else 0)
 ```
 
-UCS and A* call this through `Node.child_node`.
+`SWITCH` always costs 1. A split move inspects only the moving cube's destination,
+including a merge; activating split/teleport inspects both destination cells.
+The penalty is charged once per action, regardless of the number of fragile
+cells. See [the complete cost model](SOLVER_IMPLEMENTATION.md#bloxorz-cost-model).
+UCS and A* call this through `Node.child_node`; action count and total cost are separate.
 
 ### `problem.h1(node)`
 
 Heuristic function used by A*. It receives a `Node` and returns a numeric
-estimate of the remaining cost. It returns `0` for split states, which is
-admissible but weak. The search algorithm should pass the node, not
-`node.state`.
+estimate of the remaining cost: `ceil(min(d(occupied_cell)) / 2)` for standing,
+lying and split states on every level. d is the point distance to the goal
+with bridges open, fragile support allowed and directed zero-cost teleport
+links; it is computed by reverse 0-1 BFS. Infinite distances remain infinite.
+The search algorithm passes the Node, not `node.state`. See
+`SOLVER_IMPLEMENTATION.md#9-heuristic-notes` for the consistency argument,
+cache and exact scope of time/memory measurement.
 
 ## 6. Transition table
 
@@ -318,7 +327,6 @@ The facade in `Source/engine/solver.py` imports these functions from
 ```python
 depth_first_graph_search(problem)
 breadth_first_graph_search(problem)
-iterative_deepening_search(problem)
 uniform_cost_search(problem)
 astar_search(problem, h)
 ```
@@ -330,31 +338,54 @@ Each function must return a three-element sequence:
 ```
 
 - `goal_node`: the goal `Node`, or `None` when no solution exists.
-- `explored_ordered`: the expanded/visited items in order. The UI accepts
+- `explored_ordered`: valid frontier pops in order, including the goal. The UI accepts
   either `Node` objects or `State` objects and uses `len()` as the expanded-node
-  metric.
+  metric. Discard stale UCS/A* entries first; record then stop on a goal without
+  generating children. An initial goal gives one item. Record valid A* reopens
+  again; do not force unique states. Public SWITCH intermediates are not extra pops.
 - `elapsed_ms`: search time in milliseconds as a number.
 
 `SolveResult.solution_path()` returns `goal_node.path()`, and
 `SolveResult.solution_cost` returns `goal_node.path_cost`. The UI reads both.
 Therefore `goal_node` must be a real `Node` when a solution is found.
 
+`SolveResult.action_count` includes every action, including `SWITCH`;
+`solution_length` / displayed MOVES exclude `SWITCH`. Generic action labels
+other than `SWITCH` count normally. `Node.depth`, parents, paths and action
+lists retain every edge. Replay progress uses the complete action list.
+COST includes switching: `RIGHT -> SWITCH -> UP` with no fragile landing is
+3 actions, 2 MOVES and COST 3. For Bloxorz, BFS is optimal in rolling MOVES.
+
+The four implemented public search functions share the `rolling_search`
+adapter in `engine/search_model.py`. Internally an edge is one roll, optionally
+preceded by SWITCH to select the other split cube. Its cost sums the existing
+primitive `path_cost` calls, including the intermediate state. There is no
+standalone SWITCH search edge. Before returning, Node paths are converted once
+to primitive actions/states, including SWITCH; public depth still counts
+primitive parent edges. Explored retains only recorded search endpoints and
+the shared goal-inclusion policy. Direct calls and the solver
+facade use the same model; generic Problems and manual Bloxorz actions are unchanged.
+
 Algorithm names exposed to the UI:
 
 ```text
-DFS
 BFS
-Iterative DFS
+DFS
 Uniform Cost Search
 A*
 ```
 
 `A*` maps to `astar_search` with `problem.h1` as the heuristic.
+The shared `ALGORITHM_NAMES` list defines the supported UI order and Run all.
+DFS is the team's choice for DFS-or-IDS; IDS has no implementation or dispatch.
+Independent DLS/bidirectional functions remain explicit `NotImplementedError`
+stubs, outside the supported choices.
 
 ## 9. Implementation notes
 
-- Return the goal node as soon as the goal is removed from the frontier, or
-  when it is generated, but ensure the returned path is complete.
+- After stale/duplicate rejection, record a popped node, then goal-test and
+  return immediately on success. Do not accept a goal on generation or generate
+  its children; keep the returned primitive path complete.
 - Always keep a visited set or equivalent duplicate detection. The graph is
   finite but cycles are possible.
 - Do not modify `State.position`, `State.bridges`, `State.split`, or
@@ -368,8 +399,8 @@ A*
   destination against the old bridge configuration.
 - A split switch may return either a split state or a merged whole lying block
   when its target cubes are adjacent.
-- The current cost function is uniform (`+1` per action). A non-uniform UCS cost
-  must be implemented in `Bloxorz.path_cost`, and A* heuristics must remain
-  admissible for that cost.
+- `Bloxorz.path_cost` uses the fragile-penalty model (cost 1 or 3); the generic
+  `Problem.path_cost` remains `+1`. A* heuristics must be checked against this
+  cost model and split/teleport mechanics.
 - See [`ADVANCED_MECHANICS.md`](ADVANCED_MECHANICS.md) for the detailed gameplay
   rules and response checklist.

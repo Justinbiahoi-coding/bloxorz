@@ -42,7 +42,8 @@ class UCSTests(unittest.TestCase):
     def assert_expanded(self, problem, nodes, expected):
         self.assertTrue(all(isinstance(node, Node) for node in nodes))
         self.assertEqual([node.state for node in nodes], expected)
-        self.assertEqual(problem.expanded_states, expected)
+        # The goal is considered and recorded, but never asked for successors.
+        self.assertEqual(problem.expanded_states, [s for s in expected if s != problem.goal])
 
     def test_initial_state_is_goal(self):
         problem = WeightedGraphProblem({}, initial='G')
@@ -55,7 +56,7 @@ class UCSTests(unittest.TestCase):
         self.assertEqual(goal.solution(), [])
         self.assertEqual(goal.path_cost, 0)
         self.assertEqual(goal.depth, 0)
-        self.assert_expanded(problem, explored, [])
+        self.assert_expanded(problem, explored, ['G'])
         self.assertGreaterEqual(elapsed_ms, 0)
 
     def test_no_solution(self):
@@ -92,7 +93,7 @@ class UCSTests(unittest.TestCase):
         self.assertEqual(goal.solution(), ['long_branch', 'to_c', 'cheap_finish'])
         self.assertEqual(goal.path_cost, 3)
         self.assertEqual(goal.depth, 3)
-        self.assert_expanded(problem, explored, ['S', 'A', 'B', 'C'])
+        self.assert_expanded(problem, explored, ['S', 'A', 'B', 'C', 'G'])
 
     def test_cheaper_path_replaces_old_entry_and_stale_entry_is_skipped(self):
         problem = WeightedGraphProblem({
@@ -106,11 +107,11 @@ class UCSTests(unittest.TestCase):
         self.assertEqual(goal.solution(), ['to_b', 'cheap_a', 'finish'])
         self.assertEqual(goal.path_cost, 22)
         self.assertEqual([node.state for node in goal.path()], ['S', 'B', 'A', 'G'])
-        self.assert_expanded(problem, explored, ['S', 'B', 'A'])
+        self.assert_expanded(problem, explored, ['S', 'B', 'A', 'G'])
         # The obsolete A(cost=10) is popped before G(cost=22), but never checked
         # as a goal or expanded. The valid A was expanded with cost=2.
         self.assertEqual(problem.goal_checks, ['S', 'B', 'A', 'G'])
-        self.assertEqual([node.path_cost for node in explored], [0, 1, 2])
+        self.assertEqual([node.path_cost for node in explored], [0, 1, 2, 22])
 
     def test_expensive_goal_generated_first_is_not_accepted_early(self):
         problem = WeightedGraphProblem({
@@ -122,7 +123,7 @@ class UCSTests(unittest.TestCase):
 
         self.assertEqual(goal.solution(), ['to_a', 'cheap_goal'])
         self.assertEqual(goal.path_cost, 2)
-        self.assert_expanded(problem, explored, ['S', 'A'])
+        self.assert_expanded(problem, explored, ['S', 'A', 'G'])
 
     def test_equal_costs_do_not_require_orderable_states(self):
         start = GraphState((0, 0), 'start')
@@ -139,7 +140,7 @@ class UCSTests(unittest.TestCase):
 
         self.assertEqual(goal.solution(), ['first', 'finish'])
         self.assertEqual(goal.path_cost, 2)
-        self.assert_expanded(problem, explored, [start, first, second])
+        self.assert_expanded(problem, explored, [start, first, second, target])
 
     def test_zero_cost_cycles_and_ties_terminate_with_zero_cost_solution(self):
         problem = WeightedGraphProblem({
@@ -152,7 +153,7 @@ class UCSTests(unittest.TestCase):
 
         self.assertEqual(goal.solution(), ['to_b', 'finish'])
         self.assertEqual(goal.path_cost, 0)
-        self.assert_expanded(problem, explored, ['S', 'B', 'A'])
+        self.assert_expanded(problem, explored, ['S', 'B', 'A', 'G'])
 
     def test_best_cost_uses_whole_state_without_mutation(self):
         initial = GraphState((0, 0), 'initial')
@@ -168,7 +169,7 @@ class UCSTests(unittest.TestCase):
         self.assertEqual(goal.state, target)
         self.assertEqual(goal.path_cost, 2)
         self.assertEqual(initial, GraphState((0, 0), 'initial'))
-        self.assert_expanded(problem, explored, [initial, changed])
+        self.assert_expanded(problem, explored, [initial, changed, target])
 
     def test_elapsed_time_is_in_milliseconds_for_every_outcome(self):
         cases = [
@@ -201,7 +202,8 @@ class UCSTests(unittest.TestCase):
         self.assertEqual(session.moves, len(actions))
         self.assertEqual(result.goal_node.depth, len(actions))
         self.assertEqual(result.solution_cost, len(actions))
-        self.assertNotIn(result.goal_node.state, [node.state for node in result.explored])
+        self.assertEqual(result.explored[-1], result.goal_node)
+        self.assertEqual([node.state for node in result.explored].count(result.goal_node.state), 1)
 
     def test_search_can_start_from_current_session_state(self):
         session = GameSession(1)

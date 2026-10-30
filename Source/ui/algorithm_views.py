@@ -1,5 +1,5 @@
 import pygame
-from engine import GameSession, solve
+from engine import GameSession, count_moves, solve
 from .game import Game
 
 class AlgorithmMenu():
@@ -161,10 +161,7 @@ class AlgorithmShow():
     def process(self, events, deltatime):
         self.draw_header()
         #
-        if self.show_win_moves:
-            self.game.set_state(self.get_manipulated_state(deltatime), 1)
-        else:
-            self.game.set_state(self.get_manipulated_state(deltatime), 0)
+        self.game.set_state(self.get_manipulated_state(deltatime), 0)
         self.game.draw()
         self.game.process_end()
         #
@@ -188,6 +185,10 @@ class AlgorithmShow():
         state_index = self.time_since_start // self.transition_speed_ms
         if state_index >= len(self.solution):
             state_index = len(self.solution) - 1
+        if self.show_win_moves:
+            # Prefix length follows every replay action; MOVES excludes SWITCH.
+            self.game.session.moves = count_moves(
+                getattr(node, 'action', None) for node in self.solution[1:state_index + 1])
         if hasattr(self.solution[state_index], 'state'):
            state = self.solution[state_index].state
         else:

@@ -133,6 +133,12 @@ The other cube remains stationary.
 The player must be able to switch control between the two cubes at any time,
 for example with the spacebar. Switching control does not move either cube.
 
+Search uses one roll per edge: select either cube and roll it once. Selecting
+the other cube inserts a real `SWITCH` before the roll in the returned replay,
+but is not a separate search edge. MOVES counts rolls; ACTIONS and COST include
+SWITCH (cost 1). `active` remains part of state identity. Manual controls and
+all gameplay rules are unchanged. See `SOLVER_IMPLEMENTATION.md` for the adapter.
+
 ### 4.4 Switch interactions while split
 
 - A split cube **can** activate a soft switch.
@@ -149,6 +155,11 @@ The stage is won only by a full block standing upright on the goal.
 Whenever the active cube moves onto a cell that is horizontally or vertically
 adjacent to the other cube, the two cubes immediately merge back into a single
 lying `1 x 1 x 2` block. The merged block occupies those two cells.
+
+Only the cube that moved is checked for switch activation. A stationary cube
+already on a soft switch does not toggle it again merely because a merge
+happens. A moving cube arriving on a soft switch still activates it normally;
+arriving as a split cube does not activate a heavy switch.
 
 The merge happens automatically as part of the same move. The orientation of
 the merged block is determined by how the two cubes are adjacent:
@@ -177,6 +188,10 @@ a unit cube must be supportable:
 
 Every illegal move due to lack of support is a falling move. It is not a valid
 successor state for the solver.
+
+In particular, switch effects apply before this support check. If a toggle
+closes a bridge under any occupied part (including the stationary split cube),
+the move falls: the play session reports `fell`, and search omits the successor.
 
 ### 5.2 State uniqueness
 

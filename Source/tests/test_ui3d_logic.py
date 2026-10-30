@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from engine import GameSession
 
@@ -85,9 +86,13 @@ class SolveFromTests(unittest.TestCase):
 
     def test_missing_solver_reports_instead_of_raising(self):
         from ui3d.autoplay import solve_from
-        moves, _, error = solve_from(GameSession(1), 'Iterative DFS')
+        session = GameSession(1)
+        with patch('ui3d.autoplay.solve_problem', side_effect=NotImplementedError) as runner:
+            moves, result, error = solve_from(session, 'BFS')
+        runner.assert_called_once_with(session.problem, 'BFS', initial=session.state)
         self.assertIsNone(moves)
-        self.assertIn('not implemented', error)
+        self.assertIsNone(result)
+        self.assertEqual(error, 'BFS is not implemented yet')
 
 
 if __name__ == '__main__':

@@ -82,7 +82,8 @@ class FreePlayGame(PlayControls, DeathScene, Entity):
 
     def _hud(self):
         name = TUTORIAL_NAMES.get(self.level_number, 'Level {}'.format(self.level_number))
-        stats = [('Moves', '{:02d}'.format(self.session.moves), '')]
+        stats = [('Moves', '{:02d}'.format(self.session.moves), ''),
+                 ('Cost', '{:02d}'.format(self.session.cost), '')]
         if self.session.is_split:
             stats.append(('Cube', 'AB'[self.session.active], ''))
         self.hud.set(name, stats)
@@ -143,6 +144,7 @@ class FreePlayGame(PlayControls, DeathScene, Entity):
         self.clear_hint()
         self.assisted = False
         self.session.reset()
+        self.queued = None
         self.floor.refresh()
         self._place_block()
         self.prowl.reset()
@@ -203,7 +205,7 @@ class FreePlayGame(PlayControls, DeathScene, Entity):
             won, self.session.moves, best,
             on_next=(lambda: self.on_next(nxt)) if nxt is not None else None,
             on_retry=lambda: self.on_next(self.level_number),
-            on_levels=self.on_levels, on_menu=self.on_menu)
+            on_levels=self.on_levels, on_menu=self.on_menu, cost=self.session.cost)
 
     def update(self):
         dt = time.dt

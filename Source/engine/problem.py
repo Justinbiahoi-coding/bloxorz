@@ -1,5 +1,8 @@
+from math import inf
+
 from .algo_implementation.problem import Problem
 from .level import BRIDGE, Level
+from .heuristic import board_key, relaxed_distances
 
 DIRS = {'UP': (0, 1), 'DOWN': (0, -1), 'LEFT': (-1, 0), 'RIGHT': (1, 0)}
 
@@ -36,6 +39,25 @@ class Bloxorz(Problem):
     def goal_test(self, state):
         # the block must stand upright on the goal; split cubes never win
         return not state.split and state.position == self.goal.position
+
+    def path_cost(self, c, state1, action, state2):
+        """Base cost 1, plus 2 once if the moved part lands on fragile tiles.
+
+        Whole-block moves include both destinations after a split/teleport.
+        For a split-cube move, exclude the stationary cube by its old cell,
+        including when the output coordinates have been sorted by merging.
+        """
+        if action == 'SWITCH':
+            return c + 1
+
+        landed = zip(state2.position[::2], state2.position[1::2])
+        if state1.split:
+            index = 2 * (1 - state1.active)
+            stationary = tuple(state1.position[index:index + 2])
+            landed = (cell for cell in landed if cell != stationary)
+
+        surcharge = 2 if any(self.level.kinds.get(cell) == 'f' for cell in landed) else 0
+        return c + 1 + surcharge
 
     def _floor(self, cell, bridges):
         kind = self.level.kinds.get(cell)
@@ -95,20 +117,20 @@ class Bloxorz(Problem):
             return None
         return State(_flat(sorted(piece)), bridges)
 
-    ## Manhattan distance based heuristic.
+    def reset_heuristic_cache(self):
+        """Each search, including the traced run, builds its own distance table."""
+        self._relaxed_cache = None
+
     def h1(self, node):
-        if node.state.split:
-            return 0   # ponytail: trivially admissible; a real split heuristic is future work
-        [x_goal, y_goal] = self.goal.position
-
-        if len(node.state.position) == 2:
-            [x_block, y_block] = node.state.position
-        else:
-            # Select position of the block nearest to the goal.
-            [block_pos_x1, block_pos_y1, block_pos_x2, block_pos_y2] = node.state.position
-            [x_block, y_block] = self.closest_point(x_goal, y_goal, block_pos_x1, block_pos_y1, block_pos_x2, block_pos_y2)
-
-        return (abs(x_goal - x_block) + abs(y_goal - y_block)) // 2
+        """ceil(min relaxed point distance / 2), for every block configuration."""
+        key = board_key(self.level, self.goal)
+        cache = getattr(self, '_relaxed_cache', None)
+        if cache is None or cache[0] != key:
+            cache = self._relaxed_cache = (key, relaxed_distances(key))
+        position = node.state.position
+        distance = min(cache[1].get(cell, inf)
+                       for cell in zip(position[::2], position[1::2]))
+        return inf if distance == inf else (distance + 1) // 2
 
     # Returns the closest point to the goal based on the manhattam distance
     def closest_point(self, x_goal, y_goal, x1, y1, x2, y2):

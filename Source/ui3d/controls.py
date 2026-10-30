@@ -13,6 +13,7 @@ from .hud import SHORT
 class PlayControls:
     hint_ghost = None
     auto = None
+    solve_notice = None
     assisted = False        # a solver played moves here: Free Play does not count the level as completed
 
     def hint(self):
@@ -36,17 +37,20 @@ class PlayControls:
             return
         self.stop_auto()
         self.clear_hint()
+        if self.solve_notice:
+            self.solve_notice._gone()
+        self.solve_notice = None
         moves, result, error = solve_from(self.session, algorithm)
         if error:
-            w.Toast(error, col=theme.ORANGE)
+            self.solve_notice = w.Toast(error, col=theme.ORANGE, top=.35)
             return
         name = SHORT[algorithm]
         self.assisted = True
-        w.Toast('{}: {} moves  ·  {} nodes expanded  ·  {:.1f} ms'.format(
-            name, len(moves), result.expanded, result.elapsed_ms))
+        self.solve_notice = w.Toast('{}: {} moves · cost {} · {} nodes expanded · {:.1f} ms'.format(
+            name, result.solution_length, result.solution_cost, result.expanded, result.elapsed_ms), top=.35)
         self.hud.set_status('{} · solving'.format(name))
         self.auto = Autoplayer(self, moves, on_step=lambda d, n: self.hud.set_status(
-            '{} · move {} / {}   ·   any key takes over'.format(name, d, n)), on_end=self._auto_end)
+            '{} · action {} / {}   ·   any key takes over'.format(name, d, n)), on_end=self._auto_end)
 
     def _auto_end(self, finished):
         self.auto = None

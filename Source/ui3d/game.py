@@ -142,7 +142,7 @@ class TowerGame(PlayControls, DeathScene, Entity):
     def _hud(self):
         s = self.tower.session
         stats = [('Floor', '{:02d}'.format(self.tower.index + 1), '/ {}'.format(self.tower.count)),
-                 ('Moves', '{:02d}'.format(s.moves), '')]
+                 ('Moves', '{:02d}'.format(s.moves), ''), ('Cost', '{:02d}'.format(s.cost), '')]
         if s.is_split:
             stats.append(('Cube', 'AB'[s.active], ''))
         self.hud.set(floor_name(self.tower.index, self.tower.count), stats)
@@ -161,6 +161,7 @@ class TowerGame(PlayControls, DeathScene, Entity):
         self.clear_hint()
         s = self.tower.session
         s.reset()
+        self.queued = None
         self.floor.refresh()
         self._place_block()
         if self.prowl:
@@ -248,6 +249,7 @@ class TowerGame(PlayControls, DeathScene, Entity):
         self._clear_death()
         self._show_hud(True)
         s.reset()
+        self.queued = None
         self.floor.refresh()
         self._place_block()
         self.prowl.reset()
@@ -311,12 +313,13 @@ class TowerGame(PlayControls, DeathScene, Entity):
                         self._show_hud(False)
                         self.on_finish(self.tower.count, total)
                     else:
-                        self.banner.text = 'You made it to the roof!\n{} floors, {} moves'.format(
-                            self.tower.count, total)
+                        self.banner.text = 'You made it to the roof!\n{} floors, {} moves\nFinal floor cost {}'.format(
+                            self.tower.count, total, self.tower.session.cost)
                     return
                 for c in getattr(self.block, 'chars', []):
                     c['shadow'].enabled = False
                 self.tower.descend()                                # (Tower.descend = next level)
+                self.queued = None
                 self.next_floor = None                              # built on the first ride frame, under the black fade
                 self.phase, self.t = 'ride', 0.0
                 self._show_hud(False)
