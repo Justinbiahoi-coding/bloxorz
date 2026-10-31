@@ -4,9 +4,11 @@ the same stage, and replay either the solution or the order the nodes were expan
 
 Left column: setup, result cards, comparison table. Right: the level, with playback controls under it.
 """
+import traceback
+
 from ursina import Entity, Vec3, camera, color, destroy, invoke, time, window
 
-from engine import ALGORITHM_NAMES, GameSession, solve
+from engine import GameSession, solve
 from engine.catalog import levels_for_mode, level_label
 from engine.problem import DIRS
 from .. import icons, settings, theme
@@ -31,7 +33,15 @@ def fmt_memory(kb):
 
 
 def fmt_int(n):
-    return '{:,}'.format(n).replace(',', ' ')
+    return '—' if n is None else '{:,}'.format(n).replace(',', ' ')
+
+
+def comparison_values(result):
+    """The four measured metrics plus cost; absent solutions have no moves/cost."""
+    if result is None or isinstance(result, str):
+        return ['—'] * 5
+    return [fmt_time(result.elapsed_ms), fmt_memory(result.peak_memory_kb), fmt_int(result.expanded),
+            fmt_int(result.solution_length), fmt_int(result.solution_cost)]
 
 
 def _state(item):
@@ -47,6 +57,7 @@ class AlgorithmsLab(Entity):
         self.level = self.levels[0]
         self.algorithm = 'BFS'
         self.results = {}           # algorithm -> SolveResult (or an error string) for the current level
+        self._run_id = 0
         self.session = self.floor = None
         self.block = Block()
         self.play = None            # current playback: dict(kind, states, actions, i, running)
@@ -79,7 +90,7 @@ class AlgorithmsLab(Entity):
         y -= row * .82 / 2 + gap + row / 2
         self.stepper = w.Stepper('', self._step_level, parent=setup, y=y, w=inner, sub='')
         y -= row / 2 + gap + row * .82 / 2
-        names = [(SHORT[n], n) for n in ORDER if n in ALGORITHM_NAMES]
+        names = [(SHORT[n], n) for n in ORDER]
         self.algo_tabs = w.Tabs(names, self.algorithm, self._pick_algorithm, parent=setup, y=y, w=inner)
         bw = (inner - theme.PAD) / 2
         by = -sh / 2 + theme.PAD * .7 + row / 2 + theme.DEPTH
@@ -155,6 +166,7 @@ class AlgorithmsLab(Entity):
         self._load_level()
 
     def _load_level(self):
+        self._cancel_runs()
         self._stop_playback()
         self.results = {}
         if self.floor is not None:
@@ -212,34 +224,59 @@ class AlgorithmsLab(Entity):
         self.algorithm = name
         self._stop_playback()
         self._show_result()
+        self._show_compare()
 
     def run(self):
+        run_id = self._cancel_runs()
         self._stop_playback()
-        self._busy('Running {}…'.format(SHORT[self.algorithm]))
-        invoke(self._run_one, self.algorithm, True, delay=.05)     # let the message draw first
+        name = self.algorithm
+        self._busy('Running {}…'.format(SHORT[name]))
+        def run_selected():
+            if run_id == self._run_id:
+                self._run_one(name, True)
+        invoke(run_selected, delay=.05)     # let the message draw first
+
+    def _cancel_runs(self):
+        self._run_id = getattr(self, '_run_id', 0) + 1
+        self._busy(None)
+        return self._run_id
 
     def _run_one(self, name, show=True):
+        level, run_id = self.level, self._run_id
         try:
-            self.results[name] = solve(self.level, name)
+            result = solve(level, name)
         except NotImplementedError:
-            self.results[name] = 'not implemented'
+            result = 'not implemented'
+        except Exception as error:
+            traceback.print_exc()
+            result = 'Search failed: {}: {}'.format(type(error).__name__, error)
+        if level != self.level or run_id != self._run_id:
+            return
+        self.results[name] = result
         if show:
             self._busy(None)
             self._show_result()
             self._show_compare()
 
     def run_all(self):
+        run_id = self._cancel_runs()
         self._stop_playback()
-        names = [n for n in ORDER if n in ALGORITHM_NAMES]
+        names = ORDER
 
         def next_one(i=0):
+            if run_id != self._run_id:
+                return
             if i >= len(names) or not self:
                 self._busy(None)
                 self._show_result()
                 self._show_compare()
                 return
             self._busy('Running {} ({} / {})…'.format(SHORT[names[i]], i + 1, len(names)))
-            invoke(lambda: (self._run_one(names[i], False), next_one(i + 1)), delay=.05)
+            def run_current():
+                if run_id == self._run_id:
+                    self._run_one(names[i], False)
+                    next_one(i + 1)
+            invoke(run_current, delay=.05)
         next_one()
 
     def _busy(self, text):
@@ -267,7 +304,8 @@ class AlgorithmsLab(Entity):
         if isinstance(r, str):
             for card in self.cards.values():
                 card.value = '—'
-            self.result_note.text = '{} is not implemented yet.'.format(self.algorithm)
+            self.result_note.text = ('{} is not implemented yet.'.format(self.algorithm)
+                                     if r == 'not implemented' else r)
             return
         self.cards['time'].value = fmt_time(r.elapsed_ms)
         self.cards['memory'].value = fmt_memory(r.peak_memory_kb)
@@ -280,36 +318,33 @@ class AlgorithmsLab(Entity):
         destroy(self.compare_rows)
         self.compare_rows = Entity(parent=self.compare)
         p = self.compare
-        done = [(n, r) for n, r in ((n, self.results.get(n)) for n in ORDER) if r is not None]
+        rows = [(name, self.results.get(name)) for name in ORDER]
         x0 = -p.w / 2 + theme.PAD
-        cols = [('', 0), ('TIME', .07), ('MEMORY', .175), ('EXPANDED', .28), ('MOVES', .4)]
-        if not done:
-            w.label(self.compare_rows, 'Run all to compare the solvers here.', theme.SMALL, theme.MUTED,
-                    theme.FONT_LABEL, origin=(-.5, .5), x=x0, y=p.content_top, z=-.002)
-            return
+        cols = [('', 0), ('TIME', .055), ('MEMORY', .142), ('EXPANDED', .235), ('MOVES', .332), ('COST', .404)]
+        widths = [right[1] - left[1] - .006 for left, right in zip(cols, cols[1:])]
+        widths.append(p.w - 2 * theme.PAD - cols[-1][1])
         y = p.content_top - .004
-        for text, cx in cols:
+        for (text, cx), width in zip(cols, widths):
             w.label(self.compare_rows, text, theme.TINY * .9, theme.MUTED, theme.FONT_LABEL, origin=(-.5, .5),
-                    x=x0 + cx, y=y, z=-.002)
-        most = max((r.expanded for _, r in done if not isinstance(r, str)), default=1) or 1
-        for i, (name, r) in enumerate(done):
+                    x=x0 + cx, y=y, z=-.002, max_width=width)
+        for i, (name, r) in enumerate(rows):
             ry = y - .025 - i * .0205
             mine = name == self.algorithm
             col = theme.GOLD if mine else theme.TEXT
             w.label(self.compare_rows, SHORT[name], theme.TINY, col, theme.FONT_LABEL, origin=(-.5, .5), x=x0,
-                    y=ry, z=-.002)
-            if isinstance(r, str):
-                w.label(self.compare_rows, 'not implemented', theme.TINY, theme.MUTED, theme.FONT_LABEL,
-                        origin=(-.5, .5), x=x0 + cols[1][1], y=ry, z=-.002)
-                continue
-            vals = [fmt_time(r.elapsed_ms), fmt_memory(r.peak_memory_kb), fmt_int(r.expanded),
-                    str(r.solution_length) if r.solved else '—']
-            for (_, cx), v in zip(cols[1:], vals):
+                    y=ry, z=-.002, max_width=widths[0])
+            for (_, cx), width, v in zip(cols[1:], widths[1:], comparison_values(r)):
                 w.label(self.compare_rows, v, theme.TINY, col, theme.FONT_LABEL, origin=(-.5, .5), x=x0 + cx,
-                        y=ry, z=-.002)
-            bar = .045 * r.expanded / most                         # expanded nodes as a bar, relative
-            Entity(parent=self.compare_rows, model='quad', origin=(-.5, 0), x=x0 + .345, y=ry - .008,
-                   scale=(max(.002, bar), .006), color=theme.GOLD if mine else theme.MUTED, z=-.002)
+                        y=ry, z=-.002, max_width=width)
+        missing = [SHORT[name] for name, result in rows if result == 'not implemented']
+        failed = [SHORT[name] for name, result in rows if isinstance(result, str) and result != 'not implemented']
+        if missing or failed or not self.results:
+            notes = (['Not implemented: ' + ', '.join(missing)] if missing else [])
+            if failed:
+                notes.append('Failed: ' + ', '.join(failed))
+            note = ' · '.join(notes) if notes else 'Run all to compare the solvers.'
+            w.label(self.compare_rows, note, theme.TINY * .8, theme.MUTED, theme.FONT_LABEL,
+                    origin=(-.5, .5), x=x0, y=y - .13, z=-.002, max_width=p.w - 2 * theme.PAD)
 
     # ------------------------------------------------------------------ playback
     def replay_solution(self):
@@ -406,7 +441,7 @@ class AlgorithmsLab(Entity):
         p = self.play
         n = len(p['states']) - 1
         if p['kind'] == 'solution':
-            self.play_label.text = 'SOLUTION  ·  MOVE {} / {}'.format(p['i'], n)
+            self.play_label.text = 'SOLUTION  ·  ACTION {} / {}'.format(p['i'], n)
         else:
             self.play_label.text = 'EXPLORED  ·  NODE {} / {}  ·  {} CELLS'.format(
                 fmt_int(p['i'] + 1), fmt_int(n + 1), len(self.heat))
@@ -493,6 +528,7 @@ class AlgorithmsLab(Entity):
         self.on_back()
 
     def close(self):
+        self._cancel_runs()
         self._stop_playback()
         self.block.clear()
         if self.floor is not None:

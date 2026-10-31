@@ -5,8 +5,10 @@ import time
 
 from .node import Node
 from .utils import PriorityQueue
+from ..search_model import rolling_search
 
 
+@rolling_search
 def depth_first_graph_search(problem):
     """Graph-search DFS with visited-set duplicate detection.
 
@@ -45,8 +47,9 @@ def depth_first_graph_search(problem):
     return [None, explored_ordered, elapsed_ms]
 
 
+@rolling_search
 def breadth_first_graph_search(problem):
-    """Return the shortest path in steps, expanded nodes, and search time."""
+    """Shortest edge/roll path, valid pops including the goal, and search time."""
     started_at = time.perf_counter()
     root = Node(problem.initial)
     frontier = deque([root])
@@ -55,11 +58,11 @@ def breadth_first_graph_search(problem):
 
     while frontier:
         node = frontier.popleft()
+        explored_ordered.append(node)
         if problem.goal_test(node.state):
             elapsed_ms = (time.perf_counter() - started_at) * 1000
             return [node, explored_ordered, elapsed_ms]
 
-        explored_ordered.append(node)
         for child in node.expand(problem):
             if child.state not in discovered:
                 discovered.add(child.state)
@@ -73,10 +76,7 @@ def depth_limited_search(problem, limit=50):
     raise NotImplementedError
 
 
-def iterative_deepening_search(problem):
-    raise NotImplementedError
-
-
+@rolling_search
 def uniform_cost_search(problem):
     """Find a minimum-cost path when all step costs are nonnegative."""
     started_at = time.perf_counter()
@@ -90,11 +90,11 @@ def uniform_cost_search(problem):
         _, _, node = heapq.heappop(frontier)
         if node.path_cost != best_cost[node.state]:
             continue
+        explored_ordered.append(node)
         if problem.goal_test(node.state):
             elapsed_ms = (time.perf_counter() - started_at) * 1000
             return [node, explored_ordered, elapsed_ms]
 
-        explored_ordered.append(node)
         for child in node.expand(problem):
             if (child.state not in best_cost
                     or child.path_cost < best_cost[child.state]):
@@ -109,6 +109,7 @@ def bidirectional_search(problem):
     raise NotImplementedError
 
 
+@rolling_search
 def astar_search(problem, h):
     """A* graph search with lazy duplicate detection.
 

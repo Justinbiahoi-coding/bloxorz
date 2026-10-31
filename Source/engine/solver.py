@@ -8,17 +8,21 @@ from dataclasses import dataclass
 from .problem import Bloxorz
 from .algo_implementation.algorithms import (depth_first_graph_search,
                               breadth_first_graph_search,
-                              iterative_deepening_search,
                               uniform_cost_search,
                               astar_search)
 
+# Supported algorithms, in display order, shared by both UIs.
 ALGORITHM_NAMES = (
-    'DFS',
     'BFS',
-    'Iterative DFS',
+    'DFS',
     'Uniform Cost Search',
     'A*',
 )
+
+
+def count_moves(actions):
+    """Count non-SWITCH actions, including arbitrary labels in generic problems."""
+    return sum(action != 'SWITCH' for action in actions)
 
 
 @dataclass
@@ -36,13 +40,20 @@ class SolveResult:
 
     @property
     def expanded(self):
+        """Valid frontier pops, including the goal; a reopened state counts again."""
         return len(self.explored)
 
     @property
     def solution_length(self):
-        """Number of moves in the solution, or None."""
-        path = self.solution_path()
-        return None if path is None else len(path) - 1
+        """MOVES: number of non-SWITCH actions, or None when unsolved."""
+        if self.goal_node is None:
+            return None
+        return count_moves(self.goal_node.solution())
+
+    @property
+    def action_count(self):
+        """Number of replay/search actions, including SWITCH, or None."""
+        return None if self.goal_node is None else len(self.goal_node.solution())
 
     @property
     def solution_cost(self):
@@ -64,10 +75,6 @@ def _breadth_first(problem):
     return breadth_first_graph_search(problem)
 
 
-def _iterative_deepening(problem):
-    return iterative_deepening_search(problem)
-
-
 def _uniform_cost(problem):
     return uniform_cost_search(problem)
 
@@ -79,14 +86,13 @@ def _astar(problem):
 _ALGORITHMS = {
     'DFS': _depth_first,
     'BFS': _breadth_first,
-    'Iterative DFS': _iterative_deepening,
     'Uniform Cost Search': _uniform_cost,
     'A*': _astar,
 }
 
 
 def _peak_memory_kb(runner, problem):
-    """Peak memory the search allocates, in KB, measured with tracemalloc."""
+    """Peak traced allocation above baseline, including a fresh heuristic table."""
     owner = not tracemalloc.is_tracing()
     if owner:
         tracemalloc.start()
@@ -107,6 +113,9 @@ def solve_problem(problem, algorithm, initial=None, measure_memory=False):
     The original problem state is restored afterwards.
     ``measure_memory`` runs the search a second time under tracemalloc to fill in
     ``peak_memory_kb``; tracing slows the search, so the timing comes from the first run.
+    Each Bloxorz run resets its heuristic table inside the measured search.
+    Time and memory include graph/table construction and primitive Node conversion,
+    but exclude loading the level and GUI/replay work.
     """
     try:
         runner = _ALGORITHMS[algorithm]

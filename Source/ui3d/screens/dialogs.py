@@ -67,7 +67,7 @@ class ResultDialog(_MenuDialog):
     """
 
     def __init__(self, won, moves, best=None, on_next=None, on_retry=None, on_levels=None, on_menu=None,
-                 title=None):
+                 title=None, cost=None, cost_label='Cost'):
         rows = []
         keys = {'r': on_retry}
         if won and on_next:
@@ -78,7 +78,11 @@ class ResultDialog(_MenuDialog):
             rows.append(('Level Select', on_levels, 'secondary', None))
         rows.append(('Main Menu', on_menu, 'secondary', 'Esc'))
         if won:
-            sub = '{} moves'.format(moves) + ('   ·   best possible {}'.format(best) if best is not None else '')
+            sub = '{} moves'.format(moves)
+            if cost is not None:
+                sub += '   ·   {} {}'.format(cost_label.lower(), cost)
+            if best is not None:
+                sub += '\nbest possible {} moves'.format(best)
         else:
             sub = 'The block fell after {} moves'.format(moves)
         super().__init__(title or ('Level cleared' if won else 'You fell'), rows, subtitle=sub, escape=on_menu,

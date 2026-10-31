@@ -992,8 +992,9 @@ class Toast(Entity):
     TOP = .38
     H = .052
 
-    def __init__(self, text, parent=camera.ui, duration=2.4, col=theme.TEXT, **kw):
+    def __init__(self, text, parent=camera.ui, duration=2.4, col=theme.TEXT, top=None, **kw):
         super().__init__(parent=parent, z=-.9, **kw)          # over any dialog
+        self.top = self.TOP if top is None else top
         t = label(self, text, theme.BODY, col, theme.FONT_LABEL, max_width=1.0, z=-.002)
         w = t.width + .06
         plate(self, w + 2 * theme.RIM_W, self.H + 2 * theme.RIM_W, theme.PANEL_RIM, shade=False, z=.002)
@@ -1006,8 +1007,10 @@ class Toast(Entity):
     @classmethod
     def _reflow(cls):
         cls.live = [x for x in cls.live if x]
-        for i, toast in enumerate(cls.live):
-            toast.y = cls.TOP - i * (cls.H + .012)
+        y = cls.TOP
+        for toast in cls.live:
+            toast.y = min(y, toast.top)
+            y = toast.y - cls.H - .012
 
     def _fade(self):
         if not self:

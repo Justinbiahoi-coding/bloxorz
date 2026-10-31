@@ -21,6 +21,8 @@ class GameSession:
     def reset(self):
         self.state = self.problem.initial
         self.moves = 0
+        self.action_count = 0
+        self.cost = 0
         self.hint = None
 
     @property
@@ -62,8 +64,11 @@ class GameSession:
         if new_state is None:
             return 'fell', before, before
 
+        self.cost = self.problem.path_cost(self.cost, before, action, new_state)
         self.state = new_state
-        self.moves += 1
+        self.action_count += 1
+        if action != 'SWITCH':
+            self.moves += 1
         self.hint = None
         status = 'won' if self.problem.goal_test(new_state) else 'moved'
         return status, before, new_state
@@ -73,10 +78,11 @@ class GameSession:
         return self.attempt_move(action)[0] in ('moved', 'won')
 
     def set_state(self, state, increment_moves=True):
-        """Set the state directly; used by solution playback views."""
+        """Display a state without charging cost/actions; optionally count a changed position."""
         if self.state != state:
+            position_changed = self.state.position != state.position
             self.state = state
-            if increment_moves:
+            if increment_moves and position_changed:
                 self.moves += 1
 
     def request_hint(self):

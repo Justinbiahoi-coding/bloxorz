@@ -42,7 +42,7 @@ class BFSTests(unittest.TestCase):
         self.assertEqual(goal.depth, 0)
         self.assertEqual(goal.path_cost, 0)
         self.assertEqual(goal.solution(), [])
-        self.assertEqual(explored, [])
+        self.assertEqual(explored, [goal])
         self.assertEqual(problem.expanded_states, [])
         self.assertGreaterEqual(elapsed_ms, 0)
 
@@ -73,7 +73,7 @@ class BFSTests(unittest.TestCase):
         self.assertEqual(len(states), len(set(states)))
         self.assertEqual(problem.expanded_states, states)
 
-    def test_shortest_path_in_steps_and_goal_is_not_expanded(self):
+    def test_shortest_path_records_goal_but_does_not_generate_its_children(self):
         problem = GraphProblem({
             'S': {'long_branch': 'A', 'short_branch': 'B'},
             'A': {'to_c': 'C'},
@@ -87,7 +87,7 @@ class BFSTests(unittest.TestCase):
         self.assertEqual([node.state for node in goal.path()], ['S', 'B', 'G'])
         self.assertEqual(goal.depth, 2)
         self.assertEqual(goal.path_cost, 2)
-        self.assertEqual([node.state for node in explored], ['S', 'A', 'B', 'C'])
+        self.assertEqual([node.state for node in explored], ['S', 'A', 'B', 'C', 'G'])
         self.assertEqual(problem.expanded_states, ['S', 'A', 'B', 'C'])
 
     def test_discovery_uses_whole_state(self):
@@ -103,7 +103,7 @@ class BFSTests(unittest.TestCase):
 
         self.assertEqual(goal.state, target)
         self.assertEqual(goal.solution(), ['change_mode', 'finish'])
-        self.assertEqual([node.state for node in explored], [initial, changed])
+        self.assertEqual([node.state for node in explored], [initial, changed, target])
 
     def test_elapsed_time_is_in_milliseconds_for_every_outcome(self):
         cases = [
@@ -138,7 +138,8 @@ class BFSTests(unittest.TestCase):
         self.assertEqual(result.goal_node.depth, len(actions))
         self.assertEqual(result.solution_cost, len(actions))
         self.assertEqual(result.solution_path()[0].state, session.problem.initial)
-        self.assertNotIn(result.goal_node.state, [node.state for node in result.explored])
+        self.assertEqual(result.explored[-1], result.goal_node)
+        self.assertEqual([node.state for node in result.explored].count(result.goal_node.state), 1)
         self.assertEqual(len(result.explored), len({node.state for node in result.explored}))
 
     def test_bfs_can_start_from_current_session_state(self):

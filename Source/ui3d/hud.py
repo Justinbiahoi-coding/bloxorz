@@ -1,7 +1,7 @@
 """In-game HUD shared by Free Play and the Tower, kept to the screen edges so the board stays clear.
 
   top left      HUDBar: level name, moves (and floor in the Tower), then the tutorial tip under it
-  top right     toolbar: New Game, Restart, Hint, Solve (opens BFS / DFS / UCS / A* / IDS), Pause
+  top right     toolbar: New Game, Restart, Hint, Solve (opens BFS / DFS / UCS / A*), Pause
   bottom right  legend of the tile kinds on this level (Settings > Tile legend)
   bottom        key hints, and a status pill while a solver plays the moves
 """
@@ -11,8 +11,8 @@ from engine import ALGORITHM_NAMES, Bloxorz, solve_problem
 from . import icons, settings, theme
 from . import widgets as w
 
-SHORT = {'DFS': 'DFS', 'BFS': 'BFS', 'Iterative DFS': 'IDS', 'Uniform Cost Search': 'UCS', 'A*': 'A*'}
-ORDER = [n for n in ('BFS', 'DFS', 'Uniform Cost Search', 'A*', 'Iterative DFS') if n in ALGORITHM_NAMES]
+SHORT = {'DFS': 'DFS', 'BFS': 'BFS', 'Uniform Cost Search': 'UCS', 'A*': 'A*'}
+ORDER = ALGORITHM_NAMES
 _ready = {}
 
 
@@ -67,6 +67,7 @@ class GameHUD(Entity):
                            marker=None, key=shortcut)
             self.buttons[key] = b
             x -= bw + .012
+        self.bar_max_width = x + .012 - .02 - self.bar.x
         self.solve_menu = None
 
         self.legend = Entity(parent=self)
@@ -78,6 +79,7 @@ class GameHUD(Entity):
     # ---- content ----
     def set(self, name, stats):
         self.bar.set(name, stats)
+        self.bar.scale = min(1.0, self.bar_max_width / self.bar.width)
         if self.tip is not None:
             self._place_tip()
 

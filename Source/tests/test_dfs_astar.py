@@ -67,6 +67,7 @@ class TestDFS(unittest.TestCase):
         self.assertEqual(goal_node.state, problem.initial)
         self.assertEqual(goal_node.path_cost, 0)
         self.assertEqual(len(goal_node.solution()), 0)  # no actions needed
+        self.assertEqual(explored, [goal_node.state])
 
     def test_solves_small_levels(self):
         for level in [1, 2, 3, 4]:
@@ -151,6 +152,8 @@ class TestAStar(unittest.TestCase):
         self.assertEqual(goal_node.state, problem.initial)
         self.assertEqual(goal_node.path_cost, 0)
 
+        self.assertEqual(explored, [goal_node.state])
+
     def test_solves_small_levels(self):
         for level in [1, 2, 3, 4]:
             with self.subTest(level=level):
@@ -166,8 +169,8 @@ class TestAStar(unittest.TestCase):
         self.assertIsNotNone(dfs_node)
         self.assertLessEqual(astar_node.path_cost, dfs_node.path_cost)
 
-    def test_explored_does_not_contain_duplicates(self):
-        """The explored list in A* should never record the same state twice."""
+    def test_consistent_h1_does_not_reopen_states_on_level_one(self):
+        """This consistent-heuristic case is unique; inconsistent h may reopen."""
         problem = Bloxorz(1)
         _, explored, _ = astar_search(problem, problem.h1)
         self.assertEqual(len(explored), len(set(explored)))

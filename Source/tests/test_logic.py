@@ -2,6 +2,7 @@ import unittest
 
 from engine import (ALGORITHM_NAMES, GameSession, Level, solve,
                     solve_problem)
+from engine.algo_implementation import algorithms
 
 
 class LevelTests(unittest.TestCase):
@@ -13,6 +14,14 @@ class LevelTests(unittest.TestCase):
 
 
 class SearchTests(unittest.TestCase):
+    def test_supported_registry_order_and_legacy_stubs_are_explicit(self):
+        self.assertEqual(ALGORITHM_NAMES, ('BFS', 'DFS', 'Uniform Cost Search', 'A*'))
+        for function in (algorithms.depth_limited_search, algorithms.bidirectional_search):
+            with self.subTest(function=function.__name__), self.assertRaises(NotImplementedError):
+                function(GameSession(1).problem)
+        with self.assertRaisesRegex(ValueError, r'^Unknown algorithm: Iterative DFS$'):
+            solve(1, 'Iterative DFS')
+
     def test_all_algorithms_solve_level_one(self):
         for algorithm in ALGORITHM_NAMES:
             result = solve(1, algorithm)

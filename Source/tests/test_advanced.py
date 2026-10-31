@@ -37,7 +37,7 @@ def make_problem(tiles, start, end, switches=None, splits=None):
 
 
 def bfs(session):
-    """Shortest number of moves to win from the start, or None. (Throwaway reference, not a graded solver.)"""
+    """Shortest action count, including SWITCH, or None. (Reference, not a graded solver.)"""
     p = session.problem
     seen, queue = {p.initial}, deque([(p.initial, 0)])
     while queue:

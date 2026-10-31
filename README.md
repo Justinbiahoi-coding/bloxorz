@@ -1,6 +1,6 @@
 # Bloxorz Solver
 
-A playable Python re-implementation of the block-rolling puzzle Bloxorz, plus search-based solvers (BFS, DFS/IDS, UCS, A*) that solve any stage and replay the solution in the GUI.
+A playable Python re-implementation of the block-rolling puzzle Bloxorz, plus search-based solvers (BFS, DFS, UCS, A*) that solve stages and replay their solutions in the GUI.
 
 Course project for CSC14003 – Introduction to Artificial Intelligence, VNU-HCM.
 

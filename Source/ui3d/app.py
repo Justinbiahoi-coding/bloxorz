@@ -160,7 +160,8 @@ class App3D(Entity):
         return scene
 
     def _tower_done(self, floors, moves):
-        ResultDialog(True, moves, title='Tower cleared', on_retry=self.new_tower, on_menu=self._to_menu)
+        ResultDialog(True, moves, title='Tower cleared', on_retry=self.new_tower, on_menu=self._to_menu,
+                     cost=self.scene.session.cost, cost_label='Final floor cost')
 
     def _playing(self):
         self.state = 'game'

@@ -66,7 +66,7 @@ class App:
         self.algorithm_mode_selector = None
         self.algorithm_map_selector = None
         self.map_hint_label = None
-        self.algorithm = 'DFS'
+        self.algorithm = ALGORITHM_NAMES[0]
 
         self.state = STATE_MENU
         self.game = None

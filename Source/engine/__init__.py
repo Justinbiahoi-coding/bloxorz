@@ -7,7 +7,7 @@ from .level import Level
 from .problem import Bloxorz, State
 from .session import GameSession
 from .tower import FLOORS, Tower
-from .solver import (ALGORITHM_NAMES, SolveResult, solve, solve_problem)
+from .solver import (ALGORITHM_NAMES, SolveResult, count_moves, solve, solve_problem)
 
 __all__ = [
     'Level',
@@ -18,6 +18,7 @@ __all__ = [
     'FLOORS',
     'ALGORITHM_NAMES',
     'SolveResult',
+    'count_moves',
     'solve',
     'solve_problem',
 ]

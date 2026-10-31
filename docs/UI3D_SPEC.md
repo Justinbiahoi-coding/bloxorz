@@ -39,7 +39,7 @@ Only the interface changes; no feature is dropped.
 | 3.1 | **New Game, Restart and solver buttons** | ❌ keys only | In-game toolbar: New Game, Restart, Hint, Solve BFS/DFS/UCS/A* |
 | 3.1 | Stages loaded from JSON, shared by every solver | ✅ | — |
 | 3.2–3.5 | Each solver records **time, peak memory, expanded nodes, solution length** | ⚠️ no memory | All 4 metrics shown (peak memory added to the engine, see section 4) |
-| 3.3 | DFS or IDS | DFS ✅, IDS ❌ | IDS shown as "not implemented" instead of crashing |
+| 3.3 | DFS or IDS | DFS ✅ (team choice) | Supported choices are BFS, DFS, UCS, A*; IDS is not exposed |
 | 7 (video) | Manual play: roll, trigger switches, win/lose | ✅ | — |
 | 7 (video) | Choose a stage, run BFS/UCS/A*, show the solution, **animate/replay** | ❌ | Solution replayed on the 3D block, with play/pause/step |
 | 7 (video) | Clear view of the interface, tile kinds and controls | — | Legend + toolbar |
@@ -51,15 +51,17 @@ These belong to the solver/engine owners. The UI copes safely while they are mis
 | Issue | Effect | Proposal |
 |---|---|---|
 | **Peak memory** not measured | Required by the brief | Done: `tracemalloc` in `solve_problem` (`engine/solver.py`), returned as `peak_memory_kb` in `SolveResult` |
-| **IDS** missing | The "Iterative DFS" entry would crash | The UI catches `NotImplementedError` and shows "Not implemented" |
-| **UCS** uses cost 1 per step, so its results equal BFS | The brief says uniform cost makes UCS meaningless | The solver owner defines a separate `path_cost` |
+| **IDS** removed | No implementation, aliases or dispatch | Both UIs and Run all support BFS, DFS, UCS, A*; DFS fulfils the team's choice |
+| **UCS** uses non-uniform costs | A lower-cost solution may use more MOVES than BFS | Defined by the shared `Bloxorz.path_cost` (`engine/problem.py`) |
 | `explored` holds `State` for DFS/A* but `Node` for BFS/UCS | Counts are still correct; the UI reads both | Better to agree on one type |
 
-Timings on the test machine: the slowest is DFS on level 43, 0.67 s. The longest solution is 106 moves (BFS, level 46). Peak memory is about 6 MB. No background thread is needed, only a "Solving…" panel.
+Each primitive action has base cost 1. SWITCH always costs 1. A roll adds a fragile surcharge of 2 once if the moved part lands on at least one fragile tile, for a total of 3; otherwise it costs 1. For split cubes, only the moved cube's destination counts, including on merge; a stationary cube on fragile adds no surcharge. Split/teleport checks both destination cells.
+
+Historical measurements from an earlier version: the slowest was DFS on level 43, 0.67 s; the longest solution was 106 moves (BFS, level 46); peak memory was about 6 MB. The measurement date and environment are not specified here. These figures do not represent the current rolling-search, cost and heuristic model, and do not establish current solving times or UI responsiveness.
 
 ## 5. Design system
 
-Visual direction (reviewed 28/10): an **elevator control panel** in a low-poly city. Rectangular buttons with slightly chamfered corners, charcoal/blue-grey faces, with depth (the face sits on a dark edge and sinks when pressed). Warm gold is reserved for the main action and the selected item. Source: `ui3d/theme.py`. Samples: `docs/ui3d_screens/ui3d_widgets_preview.png`, `docs/ui3d_screens/01_menu.png`.
+Visual direction (reviewed 28/10): an **elevator control panel** in a low-poly city. Rectangular buttons with slightly chamfered corners, charcoal/blue-grey faces, with depth (the face sits on a dark edge and sinks when pressed). Warm gold is reserved for the main action and the selected item. Source: `ui3d/theme.py`. Earlier-version samples: `docs/ui3d_screens/ui3d_widgets_preview.png`, `docs/ui3d_screens/01_menu.png`. They are kept for reference, not as confirmed screenshots of the current GUI.
 
 ### Main colours
 
@@ -97,7 +99,7 @@ Fredoka has **no** `← ↑ → ↓ ▶ ■ ✓ ⏸`; these icons are drawn as m
 ### Interaction and checks
 - Mouse and keyboard work on every screen: ↑/↓ (or ←/→) to choose, Enter to press, Esc to go back.
 - The in-game HUD stays at the screen edges and does not cover the board. Algorithm metrics appear only in the Algorithms mode.
-- Every screen is checked by screenshot at 1280×720 and 1920×1080.
+- Screenshot checks target 1280×720 and 1920×1080; the current 3D GUI has not yet been visually verified in this update.
 
 ## 6. Screens
 
@@ -132,6 +134,7 @@ Code: `ui3d/app.py` (`main_menu`, `_enter_tower`), `ui3d/screens/main_menu.py`. 
 Built as a grid of level tiles with an info panel; it always stands over the title shot, also when opened from a finished game.
 
 ### 6.3 Gameplay HUD (Free Play and Tower)
+Earlier-version layout illustration: it omits COST and is kept for reference, not as a verified view of the current HUD.
 ```
  ┌ Tutorial 1 – Fragile ┐                [New] [Restart] [Hint] [Solve ▾] [❚❚]
  │ MOVES 12   ACTIVE: A │
@@ -147,16 +150,21 @@ Built as a grid of level tiles with an info panel; it always stands over the tit
 Resume, Restart, New Game (Tower) or Level Select (Free Play), Settings, Main Menu.
 
 ### 6.5 Result
-Win: LEVEL CLEARED, number of moves, and "best possible N" from BFS. Buttons Next / Retry / Level Select / Main Menu.
+Win: LEVEL CLEARED, rolling MOVES and COST, plus "best possible N moves" only
+when BFS supplies that value. BFS searches one roll per edge, optionally
+switching cube first, so it minimizes MOVES. MOVES excludes SWITCH; replay
+progress and COST include every primitive action. This is not a claim of
+minimum cost. Buttons Next / Retry / Level Select / Main Menu.
 Lose: the Tower's game-over scene (the dead close in on the bin, GAME OVER over the cat); R retries, Esc goes to Level Select in Free Play or the menu in the Tower.
 
 ### 6.6 Algorithms Lab (the largest new part)
+Earlier-version layout illustration: it omits COST and shows comparison bars that have since been removed. The figures are illustrative, not current measurements; no updated image has been confirmed.
 ```
   ALGORITHMS                                           [ Normal | Advanced ]
   ┌ Setup ───────────────┐  ┌──────────────────────────────────────────┐
   │ Level   ‹ Level 12 › │  │                                          │
   │ Algo  [BFS][DFS][UCS]│  │        3D view of the stage, the block    │
-  │       [A*][IDS]      │  │        replaying the solution             │
+  │       [A*]           │  │        replaying the solution             │
   │ [ Run ]  [ Run all ] │  │                                          │
   └──────────────────────┘  │  ▶❚❚  ⏮ ⏭   speed ‹1x›   step 14/31     │
   ┌ Result: BFS ─────────┐  └──────────────────────────────────────────┘
@@ -167,8 +175,13 @@ Lose: the Tower's game-over scene (the dead close in on the bin, GAME OVER over 
                             └──────────────────────────────────────────┘
 ```
 - **Run**: runs one algorithm and shows the 4 metrics the brief asks for.
-- **Run all**: runs all 4 on the same stage and shows a comparison table with horizontal bars. Useful for the experiments and the video.
+- **Run all**: runs all 4 on the same stage and shows a comparison table with the algorithm name and **TIME, MEMORY, EXPANDED, MOVES, COST**. Useful for the experiments and the video.
 - **Replay**: the 3D block rolls through the solution. **Explored**: highlights the explored cells in order.
+
+Expanded is the number of valid frontier pops, including the goal; the goal's
+children are not generated. Stale items are skipped, valid A* reopens count
+again, and an initial goal counts as 1. Explored playback ends at the goal;
+intermediate SWITCH Nodes added for solution replay do not add to Expanded.
 - The Lab offers all 57 stages, split into Normal and Advanced like Free Play.
 
 ### 6.7 Settings
